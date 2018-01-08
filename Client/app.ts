@@ -47,10 +47,6 @@ class Game {
         this.world = new World()
         this.world.init()
 
-        let rollOverGeo = new THREE.BoxGeometry(1, 1, 1);
-        let rollOverMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000, opacity: 0.2, transparent: true });
-        this.rollOverMesh = new THREE.Mesh(rollOverGeo, rollOverMaterial)
-
         // Events
         window.addEventListener("resize", () => this.onResize())
         this.pointer = new Input.Pointer(this.renderer.domElement)
@@ -66,6 +62,13 @@ class Game {
         window.addEventListener("keyup", (e) => {
             this.keysDown.splice(this.keysDown.indexOf(e.keyCode), 1)
         })
+
+        // GUI
+        document.body.appendChild(elementFromHTML(
+            `<div style="position:absolute; left:50%; top:50%; height:1px; width:1px; background:red"></div>`))
+        let rollOverGeo = new THREE.BoxGeometry(1, 1, 1);
+        let rollOverMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000, opacity: 0.2, transparent: true });
+        this.rollOverMesh = new THREE.Mesh(rollOverGeo, rollOverMaterial)
 
         // Start rendering
         this.stepPreviousTime = Date.now()
@@ -678,6 +681,14 @@ namespace Input {
         CLOSE_BRAKET = 221,
         SINGLE_QUOTE = 222,
     }
+}
+
+function elementFromHTML(html: string): HTMLElement {
+    let div = document.createElement('div')
+    div.innerHTML = html
+    let el = <HTMLElement>div.firstElementChild
+    div.removeChild(el)
+    return el
 }
 
 namespace Collision {

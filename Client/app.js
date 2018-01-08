@@ -30,9 +30,6 @@ var Game = /** @class */ (function () {
         this.onResize();
         this.world = new World();
         this.world.init();
-        var rollOverGeo = new THREE.BoxGeometry(1, 1, 1);
-        var rollOverMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000, opacity: 0.2, transparent: true });
-        this.rollOverMesh = new THREE.Mesh(rollOverGeo, rollOverMaterial);
         // Events
         window.addEventListener("resize", function () { return _this.onResize(); });
         this.pointer = new Input.Pointer(this.renderer.domElement);
@@ -49,6 +46,11 @@ var Game = /** @class */ (function () {
         window.addEventListener("keyup", function (e) {
             _this.keysDown.splice(_this.keysDown.indexOf(e.keyCode), 1);
         });
+        // GUI
+        document.body.appendChild(elementFromHTML("<div style=\"position:absolute; left:50%; top:50%; height:1px; width:1px; background:red\"></div>"));
+        var rollOverGeo = new THREE.BoxGeometry(1, 1, 1);
+        var rollOverMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000, opacity: 0.2, transparent: true });
+        this.rollOverMesh = new THREE.Mesh(rollOverGeo, rollOverMaterial);
         // Start rendering
         this.stepPreviousTime = Date.now();
         this.animate();
@@ -484,6 +486,13 @@ var Input;
     }());
     Input.Pointer = Pointer;
 })(Input || (Input = {}));
+function elementFromHTML(html) {
+    var div = document.createElement('div');
+    div.innerHTML = html;
+    var el = div.firstElementChild;
+    div.removeChild(el);
+    return el;
+}
 var Collision;
 (function (Collision) {
     function rect_rect(r1x1, r1y1, r1x2, r1y2, r2x1, r2y1, r2x2, r2y2) {
