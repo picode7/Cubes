@@ -218,7 +218,7 @@ class Connection {
     ws: WebSocket
 
     constructor() {
-        this.ws = new WebSocket(`ws://${location.host}`)
+        this.ws = new WebSocket(`${location.protocol == "https:" ? "wss" : "ws"}://${location.host}${location.pathname}`)
         this.ws.onopen = () => {
             let message: Message = {
                 type: MessageType.getCubes
