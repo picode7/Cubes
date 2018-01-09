@@ -1,5 +1,19 @@
 ﻿/// <reference path='types/three.d.ts' />
 
+const enum MessageType {
+    getCubes,
+    cubesAdd,
+    playerPosition,
+}
+interface Message {
+    type: MessageType
+    cubes?: { x: number, y: number, z: number }[]
+    player?: {
+        id: number,
+        position: { x: number, y: number, z: number }
+    }
+}
+
 let game: Game
 window.onload = () => {
     game = new Game()
@@ -11,7 +25,10 @@ class Game {
     camera: THREE.PerspectiveCamera
     renderer: THREE.WebGLRenderer
 
+    elDebugInfo: HTMLElement
+
     world: World
+    connection: Connection
 
     pointer: Input.Pointer
     raycaster = new THREE.Raycaster()
@@ -54,18 +71,28 @@ class Game {
         window.addEventListener("mousedown", (event) => {
             this.onclick()
         })
+        window.onbeforeunload = function () { // Prevent Ctrl+W ... Chrome!
+            return "Really want to quit the game?"
+        }
         window.addEventListener("keydown", (e) => {
             let pos = this.keysDown.indexOf(e.keyCode)
             if (pos != -1) this.keysDown.splice(pos, 1)
             this.keysDown.push(e.keyCode)
+            e.preventDefault()
+            return false
         })
         window.addEventListener("keyup", (e) => {
             this.keysDown.splice(this.keysDown.indexOf(e.keyCode), 1)
         })
 
+        // Network
+        this.connection = new Connection()
+
         // GUI
         document.body.appendChild(elementFromHTML(
-            `<div style="position:absolute; left:50%; top:50%; height:1px; width:1px; background:red"></div>`))
+            `<div style="position:absolute; left:50%; top:50%; height:1px; width:1px; background:red;pointer-events:none"></div>`))
+        this.elDebugInfo = document.body.appendChild(elementFromHTML(
+            `<div style="position:absolute; left:0; top:0; width:200px; color: white; font-size:10pt;font-family: Consolas;pointer-events:none"></div>`))
         let rollOverGeo = new THREE.BoxGeometry(1, 1, 1);
         let rollOverMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000, opacity: 0.2, transparent: true });
         this.rollOverMesh = new THREE.Mesh(rollOverGeo, rollOverMaterial)
@@ -102,13 +129,24 @@ class Game {
                 let cube = new Cube({ x: position.x, y: position.y, z: position.z })
                 this.world.cubes.push(cube)
                 cube.init(true)
+                let message: Message = {
+                    type: MessageType.cubesAdd,
+                    cubes: [cube.position]
+                }
+                this.connection.ws.send(JSON.stringify(message))
                 cube.mesh.position = position
             }
         }
     }
 
     meshShowing: boolean = false
+    timeLastFrame = 0
+    fps = 0
     animate() {
+
+        let timeNow = performance.now()
+        this.fps = this.fps / 10 * 9 + 1000 / (timeNow - this.timeLastFrame) / 10 * 1
+        this.timeLastFrame = timeNow
 
         // Raycast poiting position
         if (this.pointer.locked) {
@@ -152,7 +190,59 @@ class Game {
 
         this.world.step(deltaTime)
 
+        function f(n: number) {
+            return (n >= 0 ? '+' : '') + n.toFixed(10)
+        }
+
+        // Update Log
+        this.elDebugInfo.innerHTML =
+            `FPS: ${this.fps.toFixed(0)}<br/>` +
+            `Connection: ${this.connection.ws.readyState}<br/>` +
+            `Cubes: ${this.world.cubes.length}<br/>` +
+            `Pointer: ${this.pointer.locked ? "locked" : "not tracking"}<br/>` +
+            `Position:<br>&nbsp;
+x ${f(this.world.player.position.x)}<br>&nbsp;
+y ${f(this.world.player.position.y)}<br>&nbsp;
+z ${f(this.world.player.position.z)}<br/>` +
+            `Looking:<br>&nbsp;
+x ${f(this.camera.getWorldDirection().x)}<br>&nbsp;
+y ${f(this.camera.getWorldDirection().y)}<br>&nbsp;
+z ${f(this.camera.getWorldDirection().z)}<br/>` +
+            ""
+
         this.stepPreviousTime = stepTime
+    }
+}
+
+class Connection {
+    ws: WebSocket
+
+    constructor() {
+        this.ws = new WebSocket(`${location.protocol == "https:" ? "wss" : "ws"}://${location.host}${location.pathname}`)
+        this.ws.onopen = () => {
+            let message: Message = {
+                type: MessageType.getCubes
+            }
+            this.ws.send(JSON.stringify(message))
+        }
+        this.ws.onmessage = (ev) => {
+            let message: Message = JSON.parse(ev.data)
+            
+            switch (message.type) {
+
+                case MessageType.cubesAdd:
+                    for (let cubePosition of message.cubes) {
+                        let cube = new Cube(cubePosition)
+                        game.world.cubes.push(cube)
+                        cube.init(true)
+                    }
+                    break
+
+                case MessageType.playerPosition:
+
+                    break
+            }
+        }
     }
 }
 
@@ -417,7 +507,7 @@ class Player {
                 case Input.KEY.A: if (walkSideSpeed == 0) walkSideSpeed = -6 / 3.6; break
                 case Input.KEY.D: if (walkSideSpeed == 0) walkSideSpeed = 6 / 3.6; break
                 case Input.KEY.SPACE: if (this.velocityY == 0) this.velocityY = 9.81 / 2; break
-                case Input.KEY.SHIFT: fast = true; break
+                case Input.KEY.CTRL: fast = true; break
             }
         }
 
@@ -431,7 +521,7 @@ class Player {
 
         // Adjust Speeds
         let walkingDirection = facingDirection
-        if (fast) walkSpeed *= 1.5
+        if (fast) walkSpeed *= 2
         let speed = walkSpeed
         if (speed == 0) {
             if (walkSideSpeed != 0) {

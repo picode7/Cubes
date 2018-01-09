@@ -9,6 +9,8 @@ var Game = /** @class */ (function () {
         this.raycaster = new THREE.Raycaster();
         this.keysDown = [];
         this.meshShowing = false;
+        this.timeLastFrame = 0;
+        this.fps = 0;
         this.stepPreviousTime = 0;
         if (Input.Pointer.isSupported == false)
             alert("Browser not supported!");
@@ -37,17 +39,25 @@ var Game = /** @class */ (function () {
         window.addEventListener("mousedown", function (event) {
             _this.onclick();
         });
+        window.onbeforeunload = function () {
+            return "Really want to quit the game?";
+        };
         window.addEventListener("keydown", function (e) {
             var pos = _this.keysDown.indexOf(e.keyCode);
             if (pos != -1)
                 _this.keysDown.splice(pos, 1);
             _this.keysDown.push(e.keyCode);
+            e.preventDefault();
+            return false;
         });
         window.addEventListener("keyup", function (e) {
             _this.keysDown.splice(_this.keysDown.indexOf(e.keyCode), 1);
         });
+        // Network
+        this.connection = new Connection();
         // GUI
-        document.body.appendChild(elementFromHTML("<div style=\"position:absolute; left:50%; top:50%; height:1px; width:1px; background:red\"></div>"));
+        document.body.appendChild(elementFromHTML("<div style=\"position:absolute; left:50%; top:50%; height:1px; width:1px; background:red;pointer-events:none\"></div>"));
+        this.elDebugInfo = document.body.appendChild(elementFromHTML("<div style=\"position:absolute; left:0; top:0; width:200px; color: white; font-size:10pt;font-family: Consolas;pointer-events:none\"></div>"));
         var rollOverGeo = new THREE.BoxGeometry(1, 1, 1);
         var rollOverMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000, opacity: 0.2, transparent: true });
         this.rollOverMesh = new THREE.Mesh(rollOverGeo, rollOverMaterial);
@@ -80,12 +90,20 @@ var Game = /** @class */ (function () {
                 var cube = new Cube({ x: position.x, y: position.y, z: position.z });
                 this.world.cubes.push(cube);
                 cube.init(true);
+                var message = {
+                    type: 1 /* cubesAdd */,
+                    cubes: [cube.position]
+                };
+                this.connection.ws.send(JSON.stringify(message));
                 cube.mesh.position = position;
             }
         }
     };
     Game.prototype.animate = function () {
         var _this = this;
+        var timeNow = performance.now();
+        this.fps = this.fps / 10 * 9 + 1000 / (timeNow - this.timeLastFrame) / 10 * 1;
+        this.timeLastFrame = timeNow;
         // Raycast poiting position
         if (this.pointer.locked) {
             this.raycaster.set(this.camera.position, this.camera.getWorldDirection());
@@ -124,9 +142,49 @@ var Game = /** @class */ (function () {
         var stepTime = Date.now();
         var deltaTime = (stepTime - this.stepPreviousTime) / 1000;
         this.world.step(deltaTime);
+        function f(n) {
+            return (n >= 0 ? '+' : '') + n.toFixed(10);
+        }
+        // Update Log
+        this.elDebugInfo.innerHTML =
+            "FPS: " + this.fps.toFixed(0) + "<br/>" +
+                ("Connection: " + this.connection.ws.readyState + "<br/>") +
+                ("Cubes: " + this.world.cubes.length + "<br/>") +
+                ("Pointer: " + (this.pointer.locked ? "locked" : "not tracking") + "<br/>") +
+                ("Position:<br>&nbsp;\nx " + f(this.world.player.position.x) + "<br>&nbsp;\ny " + f(this.world.player.position.y) + "<br>&nbsp;\nz " + f(this.world.player.position.z) + "<br/>") +
+                ("Looking:<br>&nbsp;\nx " + f(this.camera.getWorldDirection().x) + "<br>&nbsp;\ny " + f(this.camera.getWorldDirection().y) + "<br>&nbsp;\nz " + f(this.camera.getWorldDirection().z) + "<br/>") +
+                "";
         this.stepPreviousTime = stepTime;
     };
     return Game;
+}());
+var Connection = /** @class */ (function () {
+    function Connection() {
+        var _this = this;
+        this.ws = new WebSocket("ws://" + location.host);
+        this.ws.onopen = function () {
+            var message = {
+                type: 0 /* getCubes */
+            };
+            _this.ws.send(JSON.stringify(message));
+        };
+        this.ws.onmessage = function (ev) {
+            var message = JSON.parse(ev.data);
+            switch (message.type) {
+                case 1 /* cubesAdd */:
+                    for (var _i = 0, _a = message.cubes; _i < _a.length; _i++) {
+                        var cubePosition = _a[_i];
+                        var cube = new Cube(cubePosition);
+                        game.world.cubes.push(cube);
+                        cube.init(true);
+                    }
+                    break;
+                case 2 /* playerPosition */:
+                    break;
+            }
+        };
+    }
+    return Connection;
 }());
 var World = /** @class */ (function () {
     function World() {
@@ -352,7 +410,7 @@ var Player = /** @class */ (function () {
                     if (this.velocityY == 0)
                         this.velocityY = 9.81 / 2;
                     break;
-                case 16 /* SHIFT */:
+                case 17 /* CTRL */:
                     fast = true;
                     break;
             }
@@ -366,7 +424,7 @@ var Player = /** @class */ (function () {
         // Adjust Speeds
         var walkingDirection = facingDirection;
         if (fast)
-            walkSpeed *= 1.5;
+            walkSpeed *= 2;
         var speed = walkSpeed;
         if (speed == 0) {
             if (walkSideSpeed != 0) {
