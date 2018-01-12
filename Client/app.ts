@@ -125,7 +125,7 @@ class Game {
             }))
 
             if (intersects.length > 0) {
-                let position = new THREE.Vector3().copy(intersects[0].object.position).add(intersects[0].face.normal)
+                let position = this.getRayCubePos(intersects[0])
                 let cube = new Cube({ x: position.x, y: position.y, z: position.z })
                 this.world.cubes.push(cube)
                 cube.init(true)
@@ -137,6 +137,14 @@ class Game {
                 cube.mesh.position = position
             }
         }
+    }
+
+    getRayCubePos(intersect: THREE.Intersection) {
+        let n = intersect.face.normal.clone()
+        if (n.x > 0) n.x = 0
+        if (n.y > 0) n.y = 0
+        if (n.z > 0) n.z = 0
+        return intersect.point.clone().add(n).floor()
     }
     
     meshShowing: boolean = false
@@ -168,7 +176,7 @@ class Game {
             }
             
             if (intersects.length) {
-                this.rollOverMesh.position.copy(intersects[0].object.position).add(intersects[0].face.normal)
+                this.rollOverMesh.position.copy(this.getRayCubePos(intersects[0]))
                 this.rollOverMesh.position.addScalar(0.5)
             }
         } else {
@@ -236,6 +244,7 @@ class Connection {
                         game.world.cubes.push(cube)
                         cube.init(true)
                     }
+                    setTimeout(() => game.world.createMashup(), 1000)
                     break
 
                 case MessageType.playerPosition:
@@ -280,6 +289,20 @@ class World {
         this.player.step(deltaTime)
     }
 
+    mashup: THREE.BufferGeometry = null
+    createMashup() {
+        let geom = new THREE.Geometry()
+
+        for (let cube of this.cubes) {
+            geom.merge(<THREE.Geometry>cube.mesh.geometry, cube.mesh.matrix)
+            game.scene.remove(cube.mesh)
+        }
+
+        let mesh = new THREE.Mesh(
+            new THREE.BufferGeometry().fromGeometry(geom),
+            new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true }))
+        game.scene.add(mesh)
+    }
 }
 
 class Cube {
