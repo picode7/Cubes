@@ -20,7 +20,7 @@ window.onload = () => {
 }
 
 class Game {
-    
+
     scene: THREE.Scene
     camera: THREE.PerspectiveCamera
     renderer: THREE.WebGLRenderer
@@ -37,7 +37,7 @@ class Game {
 
     constructor() {
 
-        if(Input.Pointer.isSupported == false) alert("Browser not supported!")
+        if (Input.Pointer.isSupported == false) alert("Browser not supported!")
 
         game = this
 
@@ -51,7 +51,7 @@ class Game {
         // Renderer
         this.renderer = new THREE.WebGLRenderer()
         document.body.appendChild(this.renderer.domElement)
-        
+
         // Setup Lights
         let ambientLight = new THREE.AmbientLight(0xffffff, 0.4)
         this.scene.add(ambientLight)
@@ -67,7 +67,7 @@ class Game {
         // Events
         window.addEventListener("resize", () => this.onResize())
         this.pointer = new Input.Pointer(this.renderer.domElement)
-        this.pointer.moveCamera(0,0)
+        this.pointer.moveCamera(0, 0)
         window.addEventListener("mousedown", (event) => {
             this.onclick()
         })
@@ -174,7 +174,7 @@ class Game {
                 this.scene.add(this.rollOverMesh)
                 this.meshShowing = true
             }
-            
+
             if (intersects.length) {
                 this.rollOverMesh.position.copy(this.getRayCubePos(intersects[0]))
                 this.rollOverMesh.position.addScalar(0.5)
@@ -263,7 +263,7 @@ class World {
     constructor() {
 
         this.player = new Player({ x: 4, y: 2, z: 4 })
-        
+
         for (let y = 0; y < 8; ++y) {
             for (let z = 0; z < 8; ++z) {
                 for (let x = 0; x < 8; ++x) {
@@ -498,22 +498,22 @@ class Player {
 
         let color = new THREE.Color(0xff8800)
         let geometry = new THREE.CylinderGeometry(1 / 2, 1 / 2, 2, 30, 1)
-        let material = new THREE.MeshLambertMaterial ({ color: color.getHex() })
+        let material = new THREE.MeshLambertMaterial({ color: color.getHex() })
         this.mesh = new THREE.Mesh(geometry, material)
         game.scene.add(this.mesh)
 
         this.spawn()
-        
+
 
     }
 
     spawn() {
         this.position.x = 4
-        this.position.y = 2
+        this.position.y = 1
         this.position.z = 4
         this.velocityY = 0
     }
-    
+
     velocityY = 0
     step(deltaTime: number) {
 
@@ -559,7 +559,7 @@ class Player {
             if (walkSideSpeed < 0) walkingDirection -= Math.PI / 4
         }
         const radians = walkingDirection > 0 ? walkingDirection : (2 * Math.PI) + walkingDirection;
-        
+
         // Wanted movement
         let deltaX = speed * Math.sin(-radians) * deltaTime
         let deltaY = this.velocityY * deltaTime
@@ -583,11 +583,14 @@ class Player {
                 )) continue
 
                 // Check side collisions
-                if (this.position.y >= cube.position.y && this.position.y < cube.position.y + 1) {
+
+                let a = cube.position.y + 1 > this.position.y
+                let b = cube.position.y < this.position.y + 2
+                if (a && b) {
                     // only collide if it wasn't allready colliding previously
                     if (!Collision.circle_rect(
                         this.position.x, this.position.z, collisionRadius,
-                        cube.position.x, cube.position.z,cube.position.x + 1, cube.position.z + 1,
+                        cube.position.x, cube.position.z, cube.position.x + 1, cube.position.z + 1,
                     )) {
                         deltaX = 0
                         deltaZ = 0
@@ -609,7 +612,7 @@ class Player {
 
         // Update Object Position
         this.mesh.position.x = this.position.x
-        this.mesh.position.y = this.position.y + 1 
+        this.mesh.position.y = this.position.y + 1
         this.mesh.position.z = this.position.z
 
         // Update Camera
@@ -632,12 +635,12 @@ namespace Input {
             document.addEventListener('pointerlockchange', () => this.pointerlockchange(), false)
             this.callback = (e) => this.mousemove(e)
         }
-        
+
         static get isSupported(): boolean {
             return 'pointerLockElement' in document
         }
 
-        callback: (e:MouseEvent)=>any
+        callback: (e: MouseEvent) => any
         pointerlockchange() {
             if (document.pointerLockElement === this.canvas && this.locked == false) {
                 this.locked = true
@@ -649,35 +652,33 @@ namespace Input {
         }
 
         mousemove(e: MouseEvent) {
-
             // https://bugs.chromium.org/p/chromium/issues/detail?id=781182
             if (Math.abs(e.movementX) > 200 || Math.abs(e.movementY) > 200) return
+
             this.moveCamera(e.movementX, e.movementY)
         }
 
         lat = 0
         lon = 0
         moveCamera(deltaX, deltaY) {
-            let phi, theta
-            let speed = .3
 
+            let speed = .2
             this.lon += deltaX * speed
             this.lat -= deltaY * speed
 
-            this.lat = Math.max(- 85, Math.min(85, this.lat));
-            phi = THREE.Math.degToRad(90 - this.lat);
+            this.lat = Math.max(-89.99, Math.min(89.99, this.lat))
 
-            theta = THREE.Math.degToRad(this.lon)
+            let phi = THREE.Math.degToRad(90 - this.lat)
+            let theta = THREE.Math.degToRad(this.lon)
 
-            let lookAt = new THREE.Vector3(
+            game.camera.lookAt(new THREE.Vector3(
                 game.camera.position.x + Math.sin(phi) * Math.cos(theta),
                 game.camera.position.y + Math.cos(phi),
                 game.camera.position.z + Math.sin(phi) * Math.sin(theta)
-            )
-            game.camera.lookAt(lookAt)
+            ))
         }
     }
-    
+
     export const enum KEY {
         BACKSPACE = 8,
         TAB = 9,
