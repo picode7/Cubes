@@ -293,14 +293,39 @@ class World {
     createMashup() {
         let geom = new THREE.Geometry()
 
+        //for (let cube of this.cubes) {
+        //    for (let face of (<THREE.Geometry>cube.mesh.geometry).faces) {
+        //        geom.vertices.push((<THREE.Geometry>cube.mesh.geometry).vertices[face.a].clone())
+        //        face.a = geom.vertices.length - 1
+        //        geom.vertices.push((<THREE.Geometry>cube.mesh.geometry).vertices[face.b].clone())
+        //        face.b = geom.vertices.length - 1
+        //        geom.vertices.push((<THREE.Geometry>cube.mesh.geometry).vertices[face.c].clone())
+        //        face.c = geom.vertices.length - 1
+        //        face.color = cube.mesh.material.color
+        //        geom.faces.push(face.clone())
+        //    }
+        //    if (cube.mesh) game.scene.remove(cube.mesh)
+        //}
+        
+        console.time("mergeMeshes")
         for (let cube of this.cubes) {
-            geom.merge(<THREE.Geometry>cube.mesh.geometry, cube.mesh.matrix)
-            game.scene.remove(cube.mesh)
+            geom.mergeMesh(cube.mesh)
+            //THREE.GeometryUtils.merge(geom, cube.mesh);
+            if (cube.mesh) game.scene.remove(cube.mesh)
         }
+        console.timeEnd("mergeMeshes")
+        console.log(geom.vertices.length, geom.faces.length)
+        //console.time("mergeVertices")
+        //geom.mergeVertices()
+        //geom.computeVertexNormals()
+        //console.timeEnd("mergeVertices")
+        console.log(geom.vertices.length, geom.faces.length)
+        console.log(geom.faces)
 
         let mesh = new THREE.Mesh(
             new THREE.BufferGeometry().fromGeometry(geom),
-            new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true }))
+            new THREE.MeshBasicMaterial({ wireframe: false }))
+
         game.scene.add(mesh)
     }
 }
@@ -321,7 +346,6 @@ class Cube {
     }
 
     constructor(position: Vector3) {
-
         this.position = position
     }
 
@@ -343,7 +367,7 @@ class Cube {
         //this.mesh.position.y = this.position.y + 0.5
         //this.mesh.position.z = this.position.z + 0.5
 
-        game.scene.add(this.mesh)
+        //game.scene.add(this.mesh)
     }
 
     buildGeometry() {
@@ -666,7 +690,7 @@ namespace Input {
             this.lon += deltaX * speed
             this.lat -= deltaY * speed
 
-            this.lat = Math.max(-89.99, Math.min(89.99, this.lat))
+            this.lat = Math.max(-89.99999, Math.min(89.99999, this.lat))
 
             let phi = THREE.Math.degToRad(90 - this.lat)
             let theta = THREE.Math.degToRad(this.lon)
