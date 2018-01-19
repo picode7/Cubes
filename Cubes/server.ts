@@ -1,4 +1,6 @@
-﻿import fs = require('fs')
+﻿/// <reference path='Message.d.ts' />
+
+import fs = require('fs')
 import WebSocket = require('ws')
 import path = require('path')
 import http = require('http')
@@ -8,23 +10,13 @@ import * as compression from 'compression'
 // Extend WS Definition for added params
 interface WebSocketEx extends WebSocket {
     isAlive: boolean
+    player: Player
 }
 
-const enum MessageType {
-    getCubes,
-    cubesAdd,
-    playerPosition,
+class Player {
+    id: string = uuidv4()
+    position: {x: number, y: number, z: number}
 }
-interface Message {
-    type: MessageType
-    cubes?: { x: number, y: number, z: number }[]
-    player?: {
-        id: number,
-        position: { x: number, y: number, z: number }
-    }
-}
-
-
 
 let cubes: { x: number, y: number, z: number }[] = []
 load()
@@ -69,8 +61,17 @@ wsServer.on("connection", (socket: WebSocketEx) => {
                 }))
                 break
 
-            case MessageType.playerPosition:
-                broadcast(data, socket)
+            case MessageType.playerUpdate:
+                socket.player.position = data.player.position
+                broadcast({ type: MessageType.playerUpdate, player: socket.player }, socket)
+                break
+
+            case MessageType.handshake:
+                socket.player = new Player()
+                socket.send(JSON.stringify({
+                    type: MessageType.handshake,
+                    player: socket.player,
+                }))
                 break
         }
     })
@@ -80,6 +81,15 @@ wsServer.on("connection", (socket: WebSocketEx) => {
     })
 
     socket.on("close", (code, reason) => {
+        let message: Message = {
+            type: MessageType.playerUpdate,
+            player: {
+                id: socket.player.id,
+                position: null,
+            }
+        }
+        broadcast(message, socket)
+        
         console.log("client lost", code, reason)
     })
 })
@@ -151,3 +161,12 @@ server.listen(8088, () => {
 server.addListener("close", () => {
     console.log("Server closed")
 })
+
+
+// https://stackoverflow.com/a/2117523/4339170
+function uuidv4() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+}
