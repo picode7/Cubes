@@ -129,11 +129,11 @@ class Game {
                 let cube = new Cube({ x: position.x, y: position.y, z: position.z })
                 this.world.cubes.push(cube)
                 cube.init(true)
-                let message: Message = {
+
+                this.connection.sendMessage({
                     type: MessageType.cubesAdd,
                     cubes: [cube.position]
-                }
-                this.connection.ws.send(JSON.stringify(message))
+                })
                 cube.mesh.position = position
             }
         }
@@ -205,7 +205,7 @@ class Game {
         // Update Log
         this.elDebugInfo.innerHTML =
             `FPS: ${this.fps.toFixed(0)}<br/>` +
-            `Connection: ${this.connection.ws.readyState}<br/>` +
+            `Connection: ${this.connection.readyState()}<br/>` +
             `Cubes: ${this.world.cubes.length}<br/>` +
             `Pointer: ${this.pointer.locked ? "locked" : "not tracking"}<br/>` +
             `Position:<br>&nbsp;
@@ -223,15 +223,17 @@ z ${f(this.camera.getWorldDirection().z)}<br/>` +
 }
 
 class Connection {
-    ws: WebSocket
+    private ws: WebSocket
 
     constructor() {
         this.ws = new WebSocket(`${location.protocol == "https:" ? "wss" : "ws"}://${location.host}${location.pathname}`)
+        this.ws.onclose = () => {
+
+        }
         this.ws.onopen = () => {
-            let message: Message = {
+            this.sendMessage({
                 type: MessageType.getCubes
-            }
-            this.ws.send(JSON.stringify(message))
+            })
         }
         this.ws.onmessage = (ev) => {
             let message: Message = JSON.parse(ev.data)
@@ -252,6 +254,14 @@ class Connection {
                     break
             }
         }
+    }
+
+    readyState(): number {
+        return this.ws.readyState
+    }
+
+    sendMessage(msg: Message) {
+        this.ws.send(JSON.stringify(msg))
     }
 }
 

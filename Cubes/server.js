@@ -55,7 +55,7 @@ wsServer.on("connection", (socket) => {
 });
 function broadcast(message, sender = null) {
     wsServer.clients.forEach((clientSocket) => {
-        if (clientSocket == sender)
+        if (clientSocket == sender || clientSocket.readyState !== WebSocket.OPEN)
             return;
         clientSocket.send(JSON.stringify(message));
     });

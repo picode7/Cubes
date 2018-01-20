@@ -86,18 +86,27 @@ var Game = /** @class */ (function () {
                 return true;
             }));
             if (intersects.length > 0) {
-                var position = new THREE.Vector3().copy(intersects[0].object.position).add(intersects[0].face.normal);
+                var position = this.getRayCubePos(intersects[0]);
                 var cube = new Cube({ x: position.x, y: position.y, z: position.z });
                 this.world.cubes.push(cube);
                 cube.init(true);
-                var message = {
+                this.connection.sendMessage({
                     type: 1 /* cubesAdd */,
                     cubes: [cube.position]
-                };
-                this.connection.ws.send(JSON.stringify(message));
+                });
                 cube.mesh.position = position;
             }
         }
+    };
+    Game.prototype.getRayCubePos = function (intersect) {
+        var n = intersect.face.normal.clone();
+        if (n.x > 0)
+            n.x = 0;
+        if (n.y > 0)
+            n.y = 0;
+        if (n.z > 0)
+            n.z = 0;
+        return intersect.point.clone().add(n).floor();
     };
     Game.prototype.animate = function () {
         var _this = this;
@@ -125,7 +134,7 @@ var Game = /** @class */ (function () {
                 this.meshShowing = true;
             }
             if (intersects.length) {
-                this.rollOverMesh.position.copy(intersects[0].object.position).add(intersects[0].face.normal);
+                this.rollOverMesh.position.copy(this.getRayCubePos(intersects[0]));
                 this.rollOverMesh.position.addScalar(0.5);
             }
         }
@@ -148,7 +157,7 @@ var Game = /** @class */ (function () {
         // Update Log
         this.elDebugInfo.innerHTML =
             "FPS: " + this.fps.toFixed(0) + "<br/>" +
-                ("Connection: " + this.connection.ws.readyState + "<br/>") +
+                ("Connection: " + this.connection.readyState() + "<br/>") +
                 ("Cubes: " + this.world.cubes.length + "<br/>") +
                 ("Pointer: " + (this.pointer.locked ? "locked" : "not tracking") + "<br/>") +
                 ("Position:<br>&nbsp;\nx " + f(this.world.player.position.x) + "<br>&nbsp;\ny " + f(this.world.player.position.y) + "<br>&nbsp;\nz " + f(this.world.player.position.z) + "<br/>") +
@@ -161,12 +170,13 @@ var Game = /** @class */ (function () {
 var Connection = /** @class */ (function () {
     function Connection() {
         var _this = this;
-        this.ws = new WebSocket("ws://" + location.host);
+        this.ws = new WebSocket((location.protocol == "https:" ? "wss" : "ws") + "://" + location.host + location.pathname);
+        this.ws.onclose = function () {
+        };
         this.ws.onopen = function () {
-            var message = {
+            _this.sendMessage({
                 type: 0 /* getCubes */
-            };
-            _this.ws.send(JSON.stringify(message));
+            });
         };
         this.ws.onmessage = function (ev) {
             var message = JSON.parse(ev.data);
@@ -178,17 +188,25 @@ var Connection = /** @class */ (function () {
                         game.world.cubes.push(cube);
                         cube.init(true);
                     }
+                    setTimeout(function () { return game.world.createMashup(); }, 1000);
                     break;
                 case 2 /* playerPosition */:
                     break;
             }
         };
     }
+    Connection.prototype.readyState = function () {
+        return this.ws.readyState;
+    };
+    Connection.prototype.sendMessage = function (msg) {
+        this.ws.send(JSON.stringify(msg));
+    };
     return Connection;
 }());
 var World = /** @class */ (function () {
     function World() {
         this.cubes = [];
+        this.mashup = null;
         this.player = new Player({ x: 4, y: 2, z: 4 });
         for (var y = 0; y < 8; ++y) {
             for (var z = 0; z < 8; ++z) {
@@ -211,6 +229,40 @@ var World = /** @class */ (function () {
     World.prototype.step = function (deltaTime) {
         this.player.step(deltaTime);
     };
+    World.prototype.createMashup = function () {
+        var geom = new THREE.Geometry();
+        //for (let cube of this.cubes) {
+        //    for (let face of (<THREE.Geometry>cube.mesh.geometry).faces) {
+        //        geom.vertices.push((<THREE.Geometry>cube.mesh.geometry).vertices[face.a].clone())
+        //        face.a = geom.vertices.length - 1
+        //        geom.vertices.push((<THREE.Geometry>cube.mesh.geometry).vertices[face.b].clone())
+        //        face.b = geom.vertices.length - 1
+        //        geom.vertices.push((<THREE.Geometry>cube.mesh.geometry).vertices[face.c].clone())
+        //        face.c = geom.vertices.length - 1
+        //        face.color = cube.mesh.material.color
+        //        geom.faces.push(face.clone())
+        //    }
+        //    if (cube.mesh) game.scene.remove(cube.mesh)
+        //}
+        console.time("mergeMeshes");
+        for (var _i = 0, _a = this.cubes; _i < _a.length; _i++) {
+            var cube = _a[_i];
+            geom.mergeMesh(cube.mesh);
+            //THREE.GeometryUtils.merge(geom, cube.mesh);
+            if (cube.mesh)
+                game.scene.remove(cube.mesh);
+        }
+        console.timeEnd("mergeMeshes");
+        console.log(geom.vertices.length, geom.faces.length);
+        //console.time("mergeVertices")
+        //geom.mergeVertices()
+        //geom.computeVertexNormals()
+        //console.timeEnd("mergeVertices")
+        console.log(geom.vertices.length, geom.faces.length);
+        console.log(geom.faces);
+        var mesh = new THREE.Mesh(new THREE.BufferGeometry().fromGeometry(geom), new THREE.MeshBasicMaterial({ wireframe: false }));
+        game.scene.add(mesh);
+    };
     return World;
 }());
 var Cube = /** @class */ (function () {
@@ -230,7 +282,7 @@ var Cube = /** @class */ (function () {
         //this.mesh.position.x = this.position.x + 0.5
         //this.mesh.position.y = this.position.y + 0.5
         //this.mesh.position.z = this.position.z + 0.5
-        game.scene.add(this.mesh);
+        //game.scene.add(this.mesh)
     };
     Cube.prototype.buildGeometry = function () {
         var geom = new THREE.Geometry();
@@ -378,7 +430,7 @@ var Player = /** @class */ (function () {
     }
     Player.prototype.spawn = function () {
         this.position.x = 4;
-        this.position.y = 2;
+        this.position.y = 1;
         this.position.z = 4;
         this.velocityY = 0;
     };
@@ -462,7 +514,9 @@ var Player = /** @class */ (function () {
                 if (!Collision.circle_rect(this.position.x + deltaX, this.position.z + deltaZ, collisionRadius, cube.position.x, cube.position.z, cube.position.x + 1, cube.position.z + 1))
                     continue;
                 // Check side collisions
-                if (this.position.y >= cube.position.y && this.position.y < cube.position.y + 1) {
+                var a = cube.position.y + 1 > this.position.y;
+                var b = cube.position.y < this.position.y + 2;
+                if (a && b) {
                     // only collide if it wasn't allready colliding previously
                     if (!Collision.circle_rect(this.position.x, this.position.z, collisionRadius, cube.position.x, cube.position.z, cube.position.x + 1, cube.position.z + 1)) {
                         deltaX = 0;
@@ -530,15 +584,13 @@ var Input;
             this.moveCamera(e.movementX, e.movementY);
         };
         Pointer.prototype.moveCamera = function (deltaX, deltaY) {
-            var phi, theta;
-            var speed = .3;
+            var speed = .2;
             this.lon += deltaX * speed;
             this.lat -= deltaY * speed;
-            this.lat = Math.max(-85, Math.min(85, this.lat));
-            phi = THREE.Math.degToRad(90 - this.lat);
-            theta = THREE.Math.degToRad(this.lon);
-            var lookAt = new THREE.Vector3(game.camera.position.x + Math.sin(phi) * Math.cos(theta), game.camera.position.y + Math.cos(phi), game.camera.position.z + Math.sin(phi) * Math.sin(theta));
-            game.camera.lookAt(lookAt);
+            this.lat = Math.max(-89.99999, Math.min(89.99999, this.lat));
+            var phi = THREE.Math.degToRad(90 - this.lat);
+            var theta = THREE.Math.degToRad(this.lon);
+            game.camera.lookAt(new THREE.Vector3(game.camera.position.x + Math.sin(phi) * Math.cos(theta), game.camera.position.y + Math.cos(phi), game.camera.position.z + Math.sin(phi) * Math.sin(theta)));
         };
         return Pointer;
     }());
