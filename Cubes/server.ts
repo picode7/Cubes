@@ -23,8 +23,26 @@ load()
 setInterval(() => save(), 10 * 1000)
 function load() {
     fs.readFile("../data.json", 'utf8', (err, data) => {
-        if (err) return
-        cubes = JSON.parse(data)
+        if (!err) {
+            cubes = JSON.parse(data)
+        }
+
+        // Default platform
+        if (!cubes|| !cubes.length ) {
+            for (let y = 0; y < 8; ++y) {
+                for (let z = 0; z < 8; ++z) {
+                    for (let x = 0; x < 8; ++x) {
+                        if (
+                            (y == 7 && (x == 0 || z == 0 || x == 7 || z == 7)) ||
+                            y == 0 ||
+                            ((x == 0 || x == 7) && (z == 7 || z == 0))
+                        ) {
+                            cubes.push({ x: x, y: y, z: z })
+                        }
+                    }
+                }
+            }
+        }
     })
 }
 function save() {
@@ -50,8 +68,22 @@ wsServer.on("connection", (socket: WebSocketEx) => {
         switch (data.type) {
 
             case MessageType.cubesAdd:
-                cubes.push(...data.cubes)
                 broadcast(data, socket)
+                cubes.push(...data.cubes)
+                break
+
+            case MessageType.removeCubes:
+                broadcast(data, socket)
+                for (let cubePosition of data.cubes) {
+                    for (let i = 0, max = cubes.length; i < max; ++i) {
+                        if (cubes[i].x == cubePosition.x &&
+                            cubes[i].y == cubePosition.y &&
+                            cubes[i].z == cubePosition.z) {
+                            cubes.splice(i, 1)
+                            break
+                        }
+                    }
+                }
                 break
 
             case MessageType.getCubes:

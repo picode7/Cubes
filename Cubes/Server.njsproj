@@ -35,6 +35,7 @@
     <DebugSymbols>true</DebugSymbols>
   </PropertyGroup>
   <ItemGroup>
+    <TypeScriptCompile Include="Message.d.ts" />
     <TypeScriptCompile Include="server.ts" />
     <Content Include="tsconfig.json" />
     <Content Include="package.json" />

@@ -19,7 +19,7 @@ var Game = /** @class */ (function () {
         // Scene
         this.scene = new THREE.Scene();
         this.scene.background = new THREE.Color(0);
-        this.scene.fog = new THREE.Fog(0, 0, 25);
+        //this.scene.fog = new THREE.Fog(0, 0, 25)
         // Camera
         this.camera = new THREE.PerspectiveCamera(90, 1, 0.1, 1000);
         // Renderer
@@ -68,6 +68,13 @@ var Game = /** @class */ (function () {
         this.animate();
         setInterval(function () { return _this.step(); }, 1000 / 100);
     }
+    Game.prototype.isKeyDown = function (key) {
+        for (var i = 0, max = this.keysDown.length; i < max; ++i) {
+            if (this.keysDown[i] == key)
+                return true;
+        }
+        return false;
+    };
     Game.prototype.onResize = function () {
         // Update render size
         this.renderer.setSize(window.innerWidth, window.innerHeight);
@@ -93,27 +100,67 @@ var Game = /** @class */ (function () {
                 return true;
             }));
             if (intersects.length > 0) {
-                var position = this.getRayCubePos(intersects[0]);
-                var cube = new Cube({ x: position.x, y: position.y, z: position.z });
-                this.world.cubes.push(cube);
-                cube.init(true);
-                this.connection.sendMessage({
-                    type: 2 /* cubesAdd */,
-                    cubes: [cube.position]
-                });
-                cube.mesh.position = position;
+                var altKey = this.isKeyDown(18 /* ALT */);
+                var position = this.getRayCubePos(intersects[0], altKey);
+                if (altKey == false) {
+                    // Add Cube
+                    var cube = new Cube({ x: position.x, y: position.y, z: position.z });
+                    this.world.cubes.push(cube);
+                    cube.init(true);
+                    this.world.createMashup();
+                    this.connection.sendMessage({
+                        type: 2 /* cubesAdd */,
+                        cubes: [cube.position]
+                    });
+                    cube.mesh.position = position;
+                }
+                else {
+                    // Remove Cube
+                    for (var i = 0, max = this.world.cubes.length; i < max; ++i) {
+                        if (this.world.cubes[i].position.x == position.x &&
+                            this.world.cubes[i].position.y == position.y &&
+                            this.world.cubes[i].position.z == position.z) {
+                            this.connection.sendMessage({
+                                type: 3 /* removeCubes */,
+                                cubes: [this.world.cubes[i].position]
+                            });
+                            this.world.cubes[i].remove();
+                            this.world.cubes.splice(i, 1);
+                            this.world.createMashup();
+                            break;
+                        }
+                    }
+                }
             }
         }
     };
-    Game.prototype.getRayCubePos = function (intersect) {
-        var n = intersect.face.normal.clone();
-        if (n.x > 0)
-            n.x = 0;
-        if (n.y > 0)
-            n.y = 0;
-        if (n.z > 0)
-            n.z = 0;
-        return intersect.point.clone().add(n).floor();
+    Game.prototype.getRayCubePos = function (intersect, alt) {
+        if (alt) {
+            var n = intersect.face.normal.clone();
+            if (n.x > 0)
+                n.x = -1;
+            else
+                n.x = 0;
+            if (n.y > 0)
+                n.y = -1;
+            else
+                n.y = 0;
+            if (n.z > 0)
+                n.z = -1;
+            else
+                n.z = 0;
+            return intersect.point.clone().add(n).floor();
+        }
+        else {
+            var n = intersect.face.normal.clone();
+            if (n.x > 0)
+                n.x = 0;
+            if (n.y > 0)
+                n.y = 0;
+            if (n.z > 0)
+                n.z = 0;
+            return intersect.point.clone().add(n).floor();
+        }
     };
     Game.prototype.animate = function () {
         var _this = this;
@@ -146,7 +193,7 @@ var Game = /** @class */ (function () {
                 this.meshShowing = true;
             }
             if (intersects.length) {
-                this.rollOverMesh.position.copy(this.getRayCubePos(intersects[0]));
+                this.rollOverMesh.position.copy(this.getRayCubePos(intersects[0], this.isKeyDown(18 /* ALT */)));
                 this.rollOverMesh.position.addScalar(0.5);
             }
         }
@@ -184,20 +231,10 @@ var World = /** @class */ (function () {
         this.cubes = [];
         this.players = [];
         this.mashup = null;
+        this.mashup2 = null;
     }
     World.prototype.init = function () {
         this.player = new Player({ x: 4, y: 2, z: 4 });
-        for (var y = 0; y < 8; ++y) {
-            for (var z = 0; z < 8; ++z) {
-                for (var x = 0; x < 8; ++x) {
-                    if ((y == 7 && (x == 0 || z == 0 || x == 7 || z == 7)) ||
-                        y == 0 ||
-                        ((x == 0 || x == 7) && (z == 7 || z == 0))) {
-                        this.cubes.push(new Cube({ x: x, y: y, z: z }));
-                    }
-                }
-            }
-        }
         for (var _i = 0, _a = this.cubes; _i < _a.length; _i++) {
             var cube = _a[_i];
             cube.init();
@@ -219,9 +256,10 @@ var World = /** @class */ (function () {
             game.scene.remove(this.mashup);
         this.mashup = new THREE.Mesh(new THREE.BufferGeometry().fromGeometry(geom), new THREE.MeshLambertMaterial({ color: 0xffffff }));
         game.scene.add(this.mashup);
-        //game.scene.add(new THREE.Mesh(
-        //    new THREE.BufferGeometry().fromGeometry(geom),
-        //    new THREE.MeshLambertMaterial({ color: 0, wireframe: true })))
+        if (this.mashup2)
+            game.scene.remove(this.mashup2);
+        this.mashup2 = new THREE.Mesh(new THREE.BufferGeometry().fromGeometry(geom), new THREE.MeshLambertMaterial({ color: 0, wireframe: true }));
+        game.scene.add(this.mashup2);
         console.timeEnd("mergeCubesTotal");
     };
     return World;
@@ -295,6 +333,32 @@ var Cube = /** @class */ (function () {
         this.mesh.position.y = this.position.y;
         this.mesh.position.z = this.position.z;
         this.mesh.updateMatrix();
+    };
+    Cube.prototype.remove = function () {
+        if (this.neighbours.back) {
+            this.neighbours.back.neighbours.front = null;
+            this.neighbours.back.buildGeometry();
+        }
+        if (this.neighbours.bottom) {
+            this.neighbours.bottom.neighbours.top = null;
+            this.neighbours.bottom.buildGeometry();
+        }
+        if (this.neighbours.front) {
+            this.neighbours.front.neighbours.back = null;
+            this.neighbours.front.buildGeometry();
+        }
+        if (this.neighbours.left) {
+            this.neighbours.left.neighbours.right = null;
+            this.neighbours.left.buildGeometry();
+        }
+        if (this.neighbours.right) {
+            this.neighbours.right.neighbours.left = null;
+            this.neighbours.right.buildGeometry();
+        }
+        if (this.neighbours.top) {
+            this.neighbours.top.neighbours.bottom = null;
+            this.neighbours.top.buildGeometry();
+        }
     };
     Cube.prototype.checkNeighbours = function (updateOthers) {
         if (updateOthers === void 0) { updateOthers = false; }
@@ -428,9 +492,24 @@ var Connection = /** @class */ (function () {
                         game.world.cubes.push(cube);
                         cube.init(true);
                     }
-                    setTimeout(function () { return game.world.createMashup(); }, 100);
+                    game.world.createMashup();
                     break;
-                case 3 /* playerUpdate */:
+                case 3 /* removeCubes */:
+                    for (var _b = 0, _c = message.cubes; _b < _c.length; _b++) {
+                        var cubePosition = _c[_b];
+                        for (var i = 0, max = game.world.cubes.length; i < max; ++i) {
+                            if (game.world.cubes[i].position.x == cubePosition.x &&
+                                game.world.cubes[i].position.y == cubePosition.y &&
+                                game.world.cubes[i].position.z == cubePosition.z) {
+                                game.world.cubes[i].remove();
+                                game.world.cubes.splice(i, 1);
+                                break;
+                            }
+                        }
+                    }
+                    game.world.createMashup();
+                    break;
+                case 4 /* playerUpdate */:
                     if (game.world.players === undefined)
                         break;
                     if (message.player.position == null) {
@@ -447,8 +526,8 @@ var Connection = /** @class */ (function () {
                     }
                     else {
                         var found = null;
-                        for (var _b = 0, _c = game.world.players; _b < _c.length; _b++) {
-                            var player = _c[_b];
+                        for (var _d = 0, _e = game.world.players; _d < _e.length; _d++) {
+                            var player = _e[_d];
                             if (player.id == message.player.id) {
                                 found = player;
                                 break;
@@ -550,10 +629,9 @@ var Player = /** @class */ (function () {
         this.mesh.position.z = this.position.z;
     };
     Player.prototype.spawn = function () {
-        if (this != game.world.player)
-            return;
+        //if (this != game.world.player) return
         this.position.x = 4;
-        this.position.y = 1;
+        this.position.y = 15;
         this.position.z = 4;
         this.velocityY = 0;
     };
@@ -662,7 +740,7 @@ var Player = /** @class */ (function () {
             this.position.y += deltaY;
             this.position.z += deltaZ;
             var message = {
-                type: 3 /* playerUpdate */,
+                type: 4 /* playerUpdate */,
                 player: {
                     id: this.id,
                     position: this.position

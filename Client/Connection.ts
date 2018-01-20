@@ -30,7 +30,22 @@ class Connection {
                         game.world.cubes.push(cube)
                         cube.init(true)
                     }
-                    setTimeout(() => game.world.createMashup(), 100)
+                    game.world.createMashup()
+                    break
+
+                case MessageType.removeCubes:
+                    for (let cubePosition of message.cubes) {
+                        for (let i = 0, max = game.world.cubes.length; i < max; ++i) {
+                            if (game.world.cubes[i].position.x == cubePosition.x &&
+                                game.world.cubes[i].position.y == cubePosition.y &&
+                                game.world.cubes[i].position.z == cubePosition.z) {
+                                game.world.cubes[i].remove()
+                                game.world.cubes.splice(i, 1)
+                                break
+                            }
+                        }
+                    }
+                    game.world.createMashup()
                     break
 
                 case MessageType.playerUpdate:

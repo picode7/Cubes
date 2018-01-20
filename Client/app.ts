@@ -31,7 +31,7 @@ class Game {
         // Scene
         this.scene = new THREE.Scene()
         this.scene.background = new THREE.Color(0)
-        this.scene.fog = new THREE.Fog(0, 0, 25)
+        //this.scene.fog = new THREE.Fog(0, 0, 25)
 
         // Camera
         this.camera = new THREE.PerspectiveCamera(90, 1, 0.1, 1000);
@@ -91,6 +91,13 @@ class Game {
         setInterval(() => this.step(), 1000 / 100)
     }
 
+    isKeyDown(key: Input.KEY): boolean {
+        for (let i = 0, max = this.keysDown.length; i < max; ++i) {
+            if(this.keysDown[i] == key) return true
+        }
+        return false
+    }
+
     onResize() {
 
         // Update render size
@@ -115,27 +122,57 @@ class Game {
             }))
 
             if (intersects.length > 0) {
-                let position = this.getRayCubePos(intersects[0])
+                let altKey = this.isKeyDown(Input.KEY.ALT)
+                let position = this.getRayCubePos(intersects[0], altKey)
 
-                let cube = new Cube({ x: position.x, y: position.y, z: position.z })
-                this.world.cubes.push(cube)
-                cube.init(true)
+                if (altKey == false) {
+                    // Add Cube
+                    let cube = new Cube({ x: position.x, y: position.y, z: position.z })
+                    this.world.cubes.push(cube)
+                    cube.init(true)
 
-                this.connection.sendMessage({
-                    type: MessageType.cubesAdd,
-                    cubes: [cube.position]
-                })
-                cube.mesh.position = position
+                    this.world.createMashup()
+
+                    this.connection.sendMessage({
+                        type: MessageType.cubesAdd,
+                        cubes: [cube.position]
+                    })
+                    cube.mesh.position = position
+                } else {
+                    // Remove Cube
+                    for (let i = 0, max = this.world.cubes.length; i < max; ++i) {
+                        if (this.world.cubes[i].position.x == position.x &&
+                            this.world.cubes[i].position.y == position.y &&
+                            this.world.cubes[i].position.z == position.z) {
+                            this.connection.sendMessage({
+                                type: MessageType.removeCubes,
+                                cubes: [this.world.cubes[i].position]
+                            })
+                            this.world.cubes[i].remove()
+                            this.world.cubes.splice(i, 1)
+                            this.world.createMashup()
+                            break
+                        }
+                    }
+                }
             }
         }
     }
 
-    getRayCubePos(intersect: THREE.Intersection) {
-        let n = intersect.face.normal.clone()
-        if (n.x > 0) n.x = 0
-        if (n.y > 0) n.y = 0
-        if (n.z > 0) n.z = 0
-        return intersect.point.clone().add(n).floor()
+    getRayCubePos(intersect: THREE.Intersection, alt: boolean) {
+        if (alt) {
+            let n = intersect.face.normal.clone()
+            if (n.x > 0) n.x = -1; else n.x = 0
+            if (n.y > 0) n.y = -1; else n.y = 0
+            if (n.z > 0) n.z = -1; else n.z = 0
+            return intersect.point.clone().add(n).floor()
+        } else {
+            let n = intersect.face.normal.clone()
+            if (n.x > 0) n.x = 0
+            if (n.y > 0) n.y = 0
+            if (n.z > 0) n.z = 0
+            return intersect.point.clone().add(n).floor()
+        }
     }
 
     meshShowing: boolean = false
@@ -169,7 +206,7 @@ class Game {
             }
 
             if (intersects.length) {
-                this.rollOverMesh.position.copy(this.getRayCubePos(intersects[0]))
+                this.rollOverMesh.position.copy(this.getRayCubePos(intersects[0], this.isKeyDown(Input.KEY.ALT)))
                 this.rollOverMesh.position.addScalar(0.5)
             }
         } else {
@@ -228,20 +265,6 @@ class World {
 
         this.player = new Player({ x: 4, y: 2, z: 4 })
 
-        for (let y = 0; y < 8; ++y) {
-            for (let z = 0; z < 8; ++z) {
-                for (let x = 0; x < 8; ++x) {
-                    if (
-                        (y == 7 && (x == 0 || z == 0 || x == 7 || z == 7)) ||
-                        y == 0 ||
-                        ((x == 0 || x == 7) && (z == 7 || z == 0))
-                    ) {
-                        this.cubes.push(new Cube({ x: x, y: y, z: z }))
-                    }
-                }
-            }
-        }
-
         for (let cube of this.cubes) {
             cube.init()
         }
@@ -252,6 +275,7 @@ class World {
     }
 
     mashup: THREE.Mesh = null
+    mashup2: THREE.Mesh = null
     createMashup() {
         console.time("mergeCubesTotal")
         let geom = new THREE.Geometry()
@@ -271,9 +295,14 @@ class World {
 
         game.scene.add(this.mashup)
 
-        //game.scene.add(new THREE.Mesh(
-        //    new THREE.BufferGeometry().fromGeometry(geom),
-        //    new THREE.MeshLambertMaterial({ color: 0, wireframe: true })))
+
+        if (this.mashup2) game.scene.remove(this.mashup2)
+
+        this.mashup2 = new THREE.Mesh(
+            new THREE.BufferGeometry().fromGeometry(geom),
+            new THREE.MeshLambertMaterial({ color: 0, wireframe: true }))
+
+        game.scene.add(this.mashup2)
 
         console.timeEnd("mergeCubesTotal")
     }
@@ -374,6 +403,33 @@ class Cube {
         this.mesh.position.y = this.position.y
         this.mesh.position.z = this.position.z
         this.mesh.updateMatrix()
+    }
+
+    remove() {
+        if (this.neighbours.back) {
+            this.neighbours.back.neighbours.front = null
+            this.neighbours.back.buildGeometry()
+        }
+        if (this.neighbours.bottom) {
+            this.neighbours.bottom.neighbours.top = null
+            this.neighbours.bottom.buildGeometry()
+        }
+        if (this.neighbours.front) {
+            this.neighbours.front.neighbours.back = null
+            this.neighbours.front.buildGeometry()
+        }
+        if (this.neighbours.left) {
+            this.neighbours.left.neighbours.right = null
+            this.neighbours.left.buildGeometry()
+        }
+        if (this.neighbours.right) {
+            this.neighbours.right.neighbours.left = null
+            this.neighbours.right.buildGeometry()
+        }
+        if (this.neighbours.top) {
+            this.neighbours.top.neighbours.bottom = null
+            this.neighbours.top.buildGeometry()
+        }
     }
 
     checkNeighbours(updateOthers = false) {

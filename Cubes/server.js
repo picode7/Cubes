@@ -17,9 +17,23 @@ load();
 setInterval(() => save(), 10 * 1000);
 function load() {
     fs.readFile("../data.json", 'utf8', (err, data) => {
-        if (err)
-            return;
-        cubes = JSON.parse(data);
+        if (!err) {
+            cubes = JSON.parse(data);
+        }
+        // Default platform
+        if (!cubes || !cubes.length) {
+            for (let y = 0; y < 8; ++y) {
+                for (let z = 0; z < 8; ++z) {
+                    for (let x = 0; x < 8; ++x) {
+                        if ((y == 7 && (x == 0 || z == 0 || x == 7 || z == 7)) ||
+                            y == 0 ||
+                            ((x == 0 || x == 7) && (z == 7 || z == 0))) {
+                            cubes.push({ x: x, y: y, z: z });
+                        }
+                    }
+                }
+            }
+        }
     });
 }
 function save() {
@@ -38,8 +52,21 @@ wsServer.on("connection", (socket) => {
         let data = JSON.parse(message);
         switch (data.type) {
             case 2 /* cubesAdd */:
-                cubes.push(...data.cubes);
                 broadcast(data, socket);
+                cubes.push(...data.cubes);
+                break;
+            case 3 /* removeCubes */:
+                broadcast(data, socket);
+                for (let cubePosition of data.cubes) {
+                    for (let i = 0, max = cubes.length; i < max; ++i) {
+                        if (cubes[i].x == cubePosition.x &&
+                            cubes[i].y == cubePosition.y &&
+                            cubes[i].z == cubePosition.z) {
+                            cubes.splice(i, 1);
+                            break;
+                        }
+                    }
+                }
                 break;
             case 1 /* getCubes */:
                 socket.send(JSON.stringify({
@@ -47,9 +74,9 @@ wsServer.on("connection", (socket) => {
                     cubes: cubes
                 }));
                 break;
-            case 3 /* playerUpdate */:
+            case 4 /* playerUpdate */:
                 socket.player.position = data.player.position;
-                broadcast({ type: 3 /* playerUpdate */, player: socket.player }, socket);
+                broadcast({ type: 4 /* playerUpdate */, player: socket.player }, socket);
                 break;
             case 0 /* handshake */:
                 socket.player = new Player();
@@ -65,7 +92,7 @@ wsServer.on("connection", (socket) => {
     });
     socket.on("close", (code, reason) => {
         let message = {
-            type: 3 /* playerUpdate */,
+            type: 4 /* playerUpdate */,
             player: {
                 id: socket.player.id,
                 position: null,

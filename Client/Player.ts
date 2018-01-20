@@ -27,10 +27,10 @@ class Player {
     }
 
     spawn() {
-        if (this != game.world.player) return
+        //if (this != game.world.player) return
 
         this.position.x = 4
-        this.position.y = 1
+        this.position.y = 15
         this.position.z = 4
         this.velocityY = 0
     }

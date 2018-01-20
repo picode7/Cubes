@@ -3,6 +3,7 @@ declare const enum MessageType {
     handshake,
     getCubes,
     cubesAdd,
+    removeCubes,
     playerUpdate,
 }
 
