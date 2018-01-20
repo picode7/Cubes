@@ -97,13 +97,11 @@ var Game = /** @class */ (function () {
                 var cube = new Cube({ x: position.x, y: position.y, z: position.z });
                 this.world.cubes.push(cube);
                 cube.init(true);
-                cube.mesh.position = position;
-                this.world.createMashup();
-                var message = {
+                this.connection.sendMessage({
                     type: 2 /* cubesAdd */,
                     cubes: [cube.position]
-                };
-                this.connection.ws.send(JSON.stringify(message));
+                });
+                cube.mesh.position = position;
             }
         }
     };
@@ -171,7 +169,7 @@ var Game = /** @class */ (function () {
         // Update Log
         this.elDebugInfo.innerHTML =
             "FPS: " + this.fps.toFixed(0) + "<br/>" +
-                ("Connection: " + this.connection.ws.readyState + "<br/>") +
+                ("Connection: " + this.connection.readyState() + "<br/>") +
                 ("Cubes: " + this.world.cubes.length + "<br/>") +
                 ("Pointer: " + (this.pointer.locked ? "locked" : "not tracking") + "<br/>") +
                 ("Position:<br>&nbsp;\nx " + f(this.world.player.position.x) + "<br>&nbsp;\ny " + f(this.world.player.position.y) + "<br>&nbsp;\nz " + f(this.world.player.position.z) + "<br/>") +
@@ -367,6 +365,173 @@ var Cube = /** @class */ (function () {
     };
     return Cube;
 }());
+var Collision;
+(function (Collision) {
+    function rect_rect(r1x1, r1y1, r1x2, r1y2, r2x1, r2y1, r2x2, r2y2) {
+        return !(r1x1 >= r2x2 || r1x2 <= r2x1 || r1y1 >= r2y2 || r1y2 <= r2y1);
+    }
+    Collision.rect_rect = rect_rect;
+    function circle_rect(cx, cy, cr, rx1, ry1, rx2, ry2) {
+        if (((rx1 - cr < cx) && (rx2 + cr > cx) && (ry1 - cr < cy) && (ry2 + cr > cy))) {
+            if (cy < ry1) {
+                if (cx < rx1) {
+                    return circle_point(cx, cy, cr, rx1, ry1);
+                }
+                else if (cx > rx2) {
+                    return circle_point(cx, cy, cr, rx2, ry1);
+                }
+            }
+            else if (cy > ry2) {
+                if (cx < rx1) {
+                    return circle_point(cx, cy, cr, rx1, ry2);
+                }
+                else if (cx > rx2) {
+                    return circle_point(cx, cy, cr, rx2, ry2);
+                }
+            }
+            return true;
+        }
+        return false;
+    }
+    Collision.circle_rect = circle_rect;
+    function circle_point(cx, cy, cr, px, py) {
+        var dx = cx - px;
+        var dy = cy - py;
+        return (dx * dx + dy * dy < cr * cr);
+    }
+    Collision.circle_point = circle_point;
+})(Collision || (Collision = {}));
+var Connection = /** @class */ (function () {
+    function Connection() {
+        var _this = this;
+        this.ws = new WebSocket((location.protocol == "https:" ? "wss" : "ws") + "://" + location.host + location.pathname);
+        this.ws.onopen = function () {
+            var message1 = {
+                type: 0 /* handshake */
+            };
+            _this.ws.send(JSON.stringify(message1));
+            var message2 = {
+                type: 1 /* getCubes */
+            };
+            _this.ws.send(JSON.stringify(message2));
+        };
+        this.ws.onmessage = function (ev) {
+            var message = JSON.parse(ev.data);
+            switch (message.type) {
+                case 0 /* handshake */:
+                    game.world.player.id = message.player.id;
+                    break;
+                case 2 /* cubesAdd */:
+                    for (var _i = 0, _a = message.cubes; _i < _a.length; _i++) {
+                        var cubePosition = _a[_i];
+                        var cube = new Cube(cubePosition);
+                        game.world.cubes.push(cube);
+                        cube.init(true);
+                    }
+                    setTimeout(function () { return game.world.createMashup(); }, 100);
+                    break;
+                case 3 /* playerUpdate */:
+                    if (game.world.players === undefined)
+                        break;
+                    if (message.player.position == null) {
+                        // remove player
+                        console.log(game.world.players);
+                        for (var i = 0; i < game.world.players.length; ++i) {
+                            if (game.world.players[i].id == message.player.id) {
+                                game.world.players[i].remove();
+                                game.world.players.splice(i, 1);
+                                break;
+                            }
+                        }
+                        console.log(game.world.players);
+                    }
+                    else {
+                        var found = null;
+                        for (var _b = 0, _c = game.world.players; _b < _c.length; _b++) {
+                            var player = _c[_b];
+                            if (player.id == message.player.id) {
+                                found = player;
+                                break;
+                            }
+                        }
+                        if (found == null) {
+                            found = new Player(message.player.position);
+                            found.id = message.player.id;
+                            game.world.players.push(found);
+                        }
+                        else {
+                            found.position = message.player.position;
+                            found.updateMeshPosition();
+                        }
+                    }
+                    break;
+            }
+        };
+    }
+    Connection.prototype.readyState = function () {
+        return this.ws.readyState;
+    };
+    Connection.prototype.sendMessage = function (msg) {
+        this.ws.send(JSON.stringify(msg));
+    };
+    return Connection;
+}());
+function elementFromHTML(html) {
+    var div = document.createElement('div');
+    div.innerHTML = html;
+    var el = div.firstElementChild;
+    div.removeChild(el);
+    return el;
+}
+var Input;
+(function (Input) {
+    var Pointer = /** @class */ (function () {
+        function Pointer(canvas) {
+            var _this = this;
+            this.canvas = canvas;
+            this.locked = false;
+            this.lat = 0;
+            this.lon = 0;
+            this.canvas.addEventListener("mousedown", this.canvas.requestPointerLock);
+            document.addEventListener('pointerlockchange', function () { return _this.pointerlockchange(); }, false);
+            this.callback = function (e) { return _this.mousemove(e); };
+        }
+        Object.defineProperty(Pointer, "isSupported", {
+            get: function () {
+                return 'pointerLockElement' in document;
+            },
+            enumerable: true,
+            configurable: true
+        });
+        Pointer.prototype.pointerlockchange = function () {
+            if (document.pointerLockElement === this.canvas && this.locked == false) {
+                this.locked = true;
+                document.addEventListener("mousemove", this.callback, false);
+            }
+            else if (document.pointerLockElement !== this.canvas && this.locked == true) {
+                this.locked = false;
+                document.removeEventListener("mousemove", this.callback, false);
+            }
+        };
+        Pointer.prototype.mousemove = function (e) {
+            // https://bugs.chromium.org/p/chromium/issues/detail?id=781182
+            if (Math.abs(e.movementX) > 200 || Math.abs(e.movementY) > 200)
+                return;
+            this.moveCamera(e.movementX, e.movementY);
+        };
+        Pointer.prototype.moveCamera = function (deltaX, deltaY) {
+            var speed = .2;
+            this.lon += deltaX * speed;
+            this.lat -= deltaY * speed;
+            this.lat = Math.max(-89.99999, Math.min(89.99999, this.lat));
+            var phi = THREE.Math.degToRad(90 - this.lat);
+            var theta = THREE.Math.degToRad(this.lon);
+            game.camera.lookAt(new THREE.Vector3(game.camera.position.x + Math.sin(phi) * Math.cos(theta), game.camera.position.y + Math.cos(phi), game.camera.position.z + Math.sin(phi) * Math.sin(theta)));
+        };
+        return Pointer;
+    }());
+    Input.Pointer = Pointer;
+})(Input || (Input = {}));
 var Player = /** @class */ (function () {
     function Player(position) {
         this.velocityY = 0;
@@ -515,164 +680,3 @@ var Player = /** @class */ (function () {
     };
     return Player;
 }());
-var Input;
-(function (Input) {
-    var Pointer = /** @class */ (function () {
-        function Pointer(canvas) {
-            var _this = this;
-            this.canvas = canvas;
-            this.locked = false;
-            this.lat = 0;
-            this.lon = 0;
-            this.canvas.addEventListener("mousedown", this.canvas.requestPointerLock);
-            document.addEventListener('pointerlockchange', function () { return _this.pointerlockchange(); }, false);
-            this.callback = function (e) { return _this.mousemove(e); };
-        }
-        Object.defineProperty(Pointer, "isSupported", {
-            get: function () {
-                return 'pointerLockElement' in document;
-            },
-            enumerable: true,
-            configurable: true
-        });
-        Pointer.prototype.pointerlockchange = function () {
-            if (document.pointerLockElement === this.canvas && this.locked == false) {
-                this.locked = true;
-                document.addEventListener("mousemove", this.callback, false);
-            }
-            else if (document.pointerLockElement !== this.canvas && this.locked == true) {
-                this.locked = false;
-                document.removeEventListener("mousemove", this.callback, false);
-            }
-        };
-        Pointer.prototype.mousemove = function (e) {
-            // https://bugs.chromium.org/p/chromium/issues/detail?id=781182
-            if (Math.abs(e.movementX) > 200 || Math.abs(e.movementY) > 200)
-                return;
-            this.moveCamera(e.movementX, e.movementY);
-        };
-        Pointer.prototype.moveCamera = function (deltaX, deltaY) {
-            var speed = .2;
-            this.lon += deltaX * speed;
-            this.lat -= deltaY * speed;
-            this.lat = Math.max(-89.99999, Math.min(89.99999, this.lat));
-            var phi = THREE.Math.degToRad(90 - this.lat);
-            var theta = THREE.Math.degToRad(this.lon);
-            game.camera.lookAt(new THREE.Vector3(game.camera.position.x + Math.sin(phi) * Math.cos(theta), game.camera.position.y + Math.cos(phi), game.camera.position.z + Math.sin(phi) * Math.sin(theta)));
-        };
-        return Pointer;
-    }());
-    Input.Pointer = Pointer;
-})(Input || (Input = {}));
-var Connection = /** @class */ (function () {
-    function Connection() {
-        var _this = this;
-        this.ws = new WebSocket((location.protocol == "https:" ? "wss" : "ws") + "://" + location.host + location.pathname);
-        this.ws.onopen = function () {
-            var message1 = {
-                type: 0 /* handshake */
-            };
-            _this.ws.send(JSON.stringify(message1));
-            var message2 = {
-                type: 1 /* getCubes */
-            };
-            _this.ws.send(JSON.stringify(message2));
-        };
-        this.ws.onmessage = function (ev) {
-            var message = JSON.parse(ev.data);
-            switch (message.type) {
-                case 0 /* handshake */:
-                    game.world.player.id = message.player.id;
-                    break;
-                case 2 /* cubesAdd */:
-                    for (var _i = 0, _a = message.cubes; _i < _a.length; _i++) {
-                        var cubePosition = _a[_i];
-                        var cube = new Cube(cubePosition);
-                        game.world.cubes.push(cube);
-                        cube.init(true);
-                    }
-                    setTimeout(function () { return game.world.createMashup(); }, 100);
-                    break;
-                case 3 /* playerUpdate */:
-                    if (game.world.players === undefined)
-                        break;
-                    if (message.player.position == null) {
-                        // remove player
-                        console.log(game.world.players);
-                        for (var i = 0; i < game.world.players.length; ++i) {
-                            if (game.world.players[i].id == message.player.id) {
-                                game.world.players[i].remove();
-                                game.world.players.splice(i, 1);
-                                break;
-                            }
-                        }
-                        console.log(game.world.players);
-                    }
-                    else {
-                        var found = null;
-                        for (var _b = 0, _c = game.world.players; _b < _c.length; _b++) {
-                            var player = _c[_b];
-                            if (player.id == message.player.id) {
-                                found = player;
-                                break;
-                            }
-                        }
-                        if (found == null) {
-                            found = new Player(message.player.position);
-                            found.id = message.player.id;
-                            game.world.players.push(found);
-                        }
-                        else {
-                            found.position = message.player.position;
-                            found.updateMeshPosition();
-                        }
-                    }
-                    break;
-            }
-        };
-    }
-    return Connection;
-}());
-var Collision;
-(function (Collision) {
-    function rect_rect(r1x1, r1y1, r1x2, r1y2, r2x1, r2y1, r2x2, r2y2) {
-        return !(r1x1 >= r2x2 || r1x2 <= r2x1 || r1y1 >= r2y2 || r1y2 <= r2y1);
-    }
-    Collision.rect_rect = rect_rect;
-    function circle_rect(cx, cy, cr, rx1, ry1, rx2, ry2) {
-        if (((rx1 - cr < cx) && (rx2 + cr > cx) && (ry1 - cr < cy) && (ry2 + cr > cy))) {
-            if (cy < ry1) {
-                if (cx < rx1) {
-                    return circle_point(cx, cy, cr, rx1, ry1);
-                }
-                else if (cx > rx2) {
-                    return circle_point(cx, cy, cr, rx2, ry1);
-                }
-            }
-            else if (cy > ry2) {
-                if (cx < rx1) {
-                    return circle_point(cx, cy, cr, rx1, ry2);
-                }
-                else if (cx > rx2) {
-                    return circle_point(cx, cy, cr, rx2, ry2);
-                }
-            }
-            return true;
-        }
-        return false;
-    }
-    Collision.circle_rect = circle_rect;
-    function circle_point(cx, cy, cr, px, py) {
-        var dx = cx - px;
-        var dy = cy - py;
-        return (dx * dx + dy * dy < cr * cr);
-    }
-    Collision.circle_point = circle_point;
-})(Collision || (Collision = {}));
-function elementFromHTML(html) {
-    var div = document.createElement('div');
-    div.innerHTML = html;
-    var el = div.firstElementChild;
-    div.removeChild(el);
-    return el;
-}

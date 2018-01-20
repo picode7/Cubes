@@ -69,4 +69,12 @@ class Connection {
             }
         }
     }
+
+    readyState(): number {
+        return this.ws.readyState
+    }
+
+    sendMessage(msg: Message) {
+        this.ws.send(JSON.stringify(msg))
+    }
 }
