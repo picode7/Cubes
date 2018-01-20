@@ -1,4 +1,5 @@
 "use strict";
+/// <reference path='Message.d.ts' />
 Object.defineProperty(exports, "__esModule", { value: true });
 const fs = require("fs");
 const WebSocket = require("ws");
@@ -6,6 +7,11 @@ const path = require("path");
 const http = require("http");
 const express = require("express");
 const compression = require("compression");
+class Player {
+    constructor() {
+        this.id = uuidv4();
+    }
+}
 let cubes = [];
 load();
 setInterval(() => save(), 10 * 1000);
@@ -31,18 +37,26 @@ wsServer.on("connection", (socket) => {
     socket.on("message", (message) => {
         let data = JSON.parse(message);
         switch (data.type) {
-            case 1 /* cubesAdd */:
+            case 2 /* cubesAdd */:
                 cubes.push(...data.cubes);
                 broadcast(data, socket);
                 break;
-            case 0 /* getCubes */:
+            case 1 /* getCubes */:
                 socket.send(JSON.stringify({
-                    type: 1 /* cubesAdd */,
+                    type: 2 /* cubesAdd */,
                     cubes: cubes
                 }));
                 break;
-            case 2 /* playerPosition */:
-                broadcast(data, socket);
+            case 3 /* playerUpdate */:
+                socket.player.position = data.player.position;
+                broadcast({ type: 3 /* playerUpdate */, player: socket.player }, socket);
+                break;
+            case 0 /* handshake */:
+                socket.player = new Player();
+                socket.send(JSON.stringify({
+                    type: 0 /* handshake */,
+                    player: socket.player,
+                }));
                 break;
         }
     });
@@ -50,6 +64,14 @@ wsServer.on("connection", (socket) => {
         console.log("client error", event);
     });
     socket.on("close", (code, reason) => {
+        let message = {
+            type: 3 /* playerUpdate */,
+            player: {
+                id: socket.player.id,
+                position: null,
+            }
+        };
+        broadcast(message, socket);
         console.log("client lost", code, reason);
     });
 });
@@ -121,4 +143,11 @@ server.listen(8088, () => {
 server.addListener("close", () => {
     console.log("Server closed");
 });
+// https://stackoverflow.com/a/2117523/4339170
+function uuidv4() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+}
 //# sourceMappingURL=server.js.map

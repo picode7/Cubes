@@ -1,4 +1,5 @@
 /// <reference path='types/three.d.ts' />
+/// <reference path='../Cubes/Message.d.ts' />
 var game;
 window.onload = function () {
     game = new Game();
@@ -17,11 +18,12 @@ var Game = /** @class */ (function () {
         game = this;
         // Scene
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x111010);
+        this.scene.background = new THREE.Color(0);
+        this.scene.fog = new THREE.Fog(0, 0, 25);
         // Camera
         this.camera = new THREE.PerspectiveCamera(90, 1, 0.1, 1000);
         // Renderer
-        this.renderer = new THREE.WebGLRenderer();
+        this.renderer = new THREE.WebGLRenderer({ antialias: true });
         document.body.appendChild(this.renderer.domElement);
         // Setup Lights
         var ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
@@ -83,6 +85,11 @@ var Game = /** @class */ (function () {
                     return false;
                 if (obj == _this.world.player.mesh)
                     return false;
+                for (var _i = 0, _a = _this.world.players; _i < _a.length; _i++) {
+                    var player = _a[_i];
+                    if (obj == player.mesh)
+                        return false;
+                }
                 return true;
             }));
             if (intersects.length > 0) {
@@ -90,11 +97,13 @@ var Game = /** @class */ (function () {
                 var cube = new Cube({ x: position.x, y: position.y, z: position.z });
                 this.world.cubes.push(cube);
                 cube.init(true);
-                this.connection.sendMessage({
-                    type: 1 /* cubesAdd */,
-                    cubes: [cube.position]
-                });
                 cube.mesh.position = position;
+                this.world.createMashup();
+                var message = {
+                    type: 2 /* cubesAdd */,
+                    cubes: [cube.position]
+                };
+                this.connection.ws.send(JSON.stringify(message));
             }
         }
     };
@@ -121,6 +130,11 @@ var Game = /** @class */ (function () {
                     return false;
                 if (obj == _this.world.player.mesh)
                     return false;
+                for (var _i = 0, _a = _this.world.players; _i < _a.length; _i++) {
+                    var player = _a[_i];
+                    if (obj == player.mesh)
+                        return false;
+                }
                 return true;
             }));
             if (intersects.length == 0) {
@@ -157,7 +171,7 @@ var Game = /** @class */ (function () {
         // Update Log
         this.elDebugInfo.innerHTML =
             "FPS: " + this.fps.toFixed(0) + "<br/>" +
-                ("Connection: " + this.connection.readyState() + "<br/>") +
+                ("Connection: " + this.connection.ws.readyState + "<br/>") +
                 ("Cubes: " + this.world.cubes.length + "<br/>") +
                 ("Pointer: " + (this.pointer.locked ? "locked" : "not tracking") + "<br/>") +
                 ("Position:<br>&nbsp;\nx " + f(this.world.player.position.x) + "<br>&nbsp;\ny " + f(this.world.player.position.y) + "<br>&nbsp;\nz " + f(this.world.player.position.z) + "<br/>") +
@@ -167,46 +181,13 @@ var Game = /** @class */ (function () {
     };
     return Game;
 }());
-var Connection = /** @class */ (function () {
-    function Connection() {
-        var _this = this;
-        this.ws = new WebSocket((location.protocol == "https:" ? "wss" : "ws") + "://" + location.host + location.pathname);
-        this.ws.onclose = function () {
-        };
-        this.ws.onopen = function () {
-            _this.sendMessage({
-                type: 0 /* getCubes */
-            });
-        };
-        this.ws.onmessage = function (ev) {
-            var message = JSON.parse(ev.data);
-            switch (message.type) {
-                case 1 /* cubesAdd */:
-                    for (var _i = 0, _a = message.cubes; _i < _a.length; _i++) {
-                        var cubePosition = _a[_i];
-                        var cube = new Cube(cubePosition);
-                        game.world.cubes.push(cube);
-                        cube.init(true);
-                    }
-                    setTimeout(function () { return game.world.createMashup(); }, 1000);
-                    break;
-                case 2 /* playerPosition */:
-                    break;
-            }
-        };
-    }
-    Connection.prototype.readyState = function () {
-        return this.ws.readyState;
-    };
-    Connection.prototype.sendMessage = function (msg) {
-        this.ws.send(JSON.stringify(msg));
-    };
-    return Connection;
-}());
 var World = /** @class */ (function () {
     function World() {
         this.cubes = [];
+        this.players = [];
         this.mashup = null;
+    }
+    World.prototype.init = function () {
         this.player = new Player({ x: 4, y: 2, z: 4 });
         for (var y = 0; y < 8; ++y) {
             for (var z = 0; z < 8; ++z) {
@@ -219,8 +200,6 @@ var World = /** @class */ (function () {
                 }
             }
         }
-    }
-    World.prototype.init = function () {
         for (var _i = 0, _a = this.cubes; _i < _a.length; _i++) {
             var cube = _a[_i];
             cube.init();
@@ -230,38 +209,22 @@ var World = /** @class */ (function () {
         this.player.step(deltaTime);
     };
     World.prototype.createMashup = function () {
+        console.time("mergeCubesTotal");
         var geom = new THREE.Geometry();
-        //for (let cube of this.cubes) {
-        //    for (let face of (<THREE.Geometry>cube.mesh.geometry).faces) {
-        //        geom.vertices.push((<THREE.Geometry>cube.mesh.geometry).vertices[face.a].clone())
-        //        face.a = geom.vertices.length - 1
-        //        geom.vertices.push((<THREE.Geometry>cube.mesh.geometry).vertices[face.b].clone())
-        //        face.b = geom.vertices.length - 1
-        //        geom.vertices.push((<THREE.Geometry>cube.mesh.geometry).vertices[face.c].clone())
-        //        face.c = geom.vertices.length - 1
-        //        face.color = cube.mesh.material.color
-        //        geom.faces.push(face.clone())
-        //    }
-        //    if (cube.mesh) game.scene.remove(cube.mesh)
-        //}
-        console.time("mergeMeshes");
         for (var _i = 0, _a = this.cubes; _i < _a.length; _i++) {
             var cube = _a[_i];
-            geom.mergeMesh(cube.mesh);
-            //THREE.GeometryUtils.merge(geom, cube.mesh);
-            if (cube.mesh)
-                game.scene.remove(cube.mesh);
+            geom.merge(cube.mesh.geometry, cube.mesh.matrix);
         }
-        console.timeEnd("mergeMeshes");
-        console.log(geom.vertices.length, geom.faces.length);
-        //console.time("mergeVertices")
-        //geom.mergeVertices()
-        //geom.computeVertexNormals()
-        //console.timeEnd("mergeVertices")
-        console.log(geom.vertices.length, geom.faces.length);
-        console.log(geom.faces);
-        var mesh = new THREE.Mesh(new THREE.BufferGeometry().fromGeometry(geom), new THREE.MeshBasicMaterial({ wireframe: false }));
-        game.scene.add(mesh);
+        // Reduce CPU->GPU load
+        geom.mergeVertices();
+        if (this.mashup)
+            game.scene.remove(this.mashup);
+        this.mashup = new THREE.Mesh(new THREE.BufferGeometry().fromGeometry(geom), new THREE.MeshLambertMaterial({ color: 0xffffff }));
+        game.scene.add(this.mashup);
+        //game.scene.add(new THREE.Mesh(
+        //    new THREE.BufferGeometry().fromGeometry(geom),
+        //    new THREE.MeshLambertMaterial({ color: 0, wireframe: true })))
+        console.timeEnd("mergeCubesTotal");
     };
     return World;
 }());
@@ -275,14 +238,6 @@ var Cube = /** @class */ (function () {
         this.color = new THREE.Color(c, c, c);
         this.checkNeighbours(updateNeighbours);
         this.buildGeometry();
-        //let geometry = new THREE.BoxGeometry(1, 1, 1)
-        ////let material = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true })
-        //let material = new THREE.MeshLambertMaterial({ color: color.getHex() })
-        //this.mesh = new THREE.Mesh(geometry, material)
-        //this.mesh.position.x = this.position.x + 0.5
-        //this.mesh.position.y = this.position.y + 0.5
-        //this.mesh.position.z = this.position.z + 0.5
-        //game.scene.add(this.mesh)
     };
     Cube.prototype.buildGeometry = function () {
         var geom = new THREE.Geometry();
@@ -337,23 +292,18 @@ var Cube = /** @class */ (function () {
             geom.faces.push(new THREE.Face3(vtfl, vbfr, vbfl, new THREE.Vector3(+1, 0, 0)));
             geom.faces.push(new THREE.Face3(vbfr, vtfl, vtfr, new THREE.Vector3(+1, 0, 0)));
         }
-        if (this.mesh)
-            game.scene.remove(this.mesh);
         this.mesh = new THREE.Mesh(geom, new THREE.MeshLambertMaterial({ color: /*0xffffff || */ this.color.getHex(), wireframe: false }));
         this.mesh.position.x = this.position.x;
         this.mesh.position.y = this.position.y;
         this.mesh.position.z = this.position.z;
-        game.scene.add(this.mesh);
+        this.mesh.updateMatrix();
     };
     Cube.prototype.checkNeighbours = function (updateOthers) {
         if (updateOthers === void 0) { updateOthers = false; }
         this.neighbours = {
-            top: null,
-            bottom: null,
-            front: null,
-            back: null,
-            left: null,
-            right: null,
+            top: null, bottom: null,
+            front: null, back: null,
+            left: null, right: null,
         };
         for (var _i = 0, _a = game.world.cubes; _i < _a.length; _i++) {
             var cube = _a[_i];
@@ -428,13 +378,26 @@ var Player = /** @class */ (function () {
         game.scene.add(this.mesh);
         this.spawn();
     }
+    Player.prototype.updateMeshPosition = function () {
+        // Update Object Position
+        this.mesh.position.x = this.position.x;
+        this.mesh.position.y = this.position.y + 1;
+        this.mesh.position.z = this.position.z;
+    };
     Player.prototype.spawn = function () {
+        if (this != game.world.player)
+            return;
         this.position.x = 4;
         this.position.y = 1;
         this.position.z = 4;
         this.velocityY = 0;
     };
+    Player.prototype.remove = function () {
+        game.scene.remove(this.mesh);
+    };
     Player.prototype.step = function (deltaTime) {
+        if (this != game.world.player)
+            return;
         var facingDirection = game.camera.rotation.y;
         var walkSpeed = 0;
         var walkSideSpeed = 0;
@@ -462,7 +425,7 @@ var Player = /** @class */ (function () {
                     if (this.velocityY == 0)
                         this.velocityY = 9.81 / 2;
                     break;
-                case 17 /* CTRL */:
+                case 16 /* SHIFT */:
                     fast = true;
                     break;
             }
@@ -533,11 +496,16 @@ var Player = /** @class */ (function () {
             this.position.x += deltaX;
             this.position.y += deltaY;
             this.position.z += deltaZ;
+            var message = {
+                type: 3 /* playerUpdate */,
+                player: {
+                    id: this.id,
+                    position: this.position
+                }
+            };
+            game.connection.ws.send(JSON.stringify(message));
         }
-        // Update Object Position
-        this.mesh.position.x = this.position.x;
-        this.mesh.position.y = this.position.y + 1;
-        this.mesh.position.z = this.position.z;
+        this.updateMeshPosition();
         // Update Camera
         var camX = 0; //0.5 * Math.sin(-radians)
         var camZ = 0; //0.5 * -Math.cos(-radians)
@@ -596,13 +564,75 @@ var Input;
     }());
     Input.Pointer = Pointer;
 })(Input || (Input = {}));
-function elementFromHTML(html) {
-    var div = document.createElement('div');
-    div.innerHTML = html;
-    var el = div.firstElementChild;
-    div.removeChild(el);
-    return el;
-}
+var Connection = /** @class */ (function () {
+    function Connection() {
+        var _this = this;
+        this.ws = new WebSocket((location.protocol == "https:" ? "wss" : "ws") + "://" + location.host + location.pathname);
+        this.ws.onopen = function () {
+            var message1 = {
+                type: 0 /* handshake */
+            };
+            _this.ws.send(JSON.stringify(message1));
+            var message2 = {
+                type: 1 /* getCubes */
+            };
+            _this.ws.send(JSON.stringify(message2));
+        };
+        this.ws.onmessage = function (ev) {
+            var message = JSON.parse(ev.data);
+            switch (message.type) {
+                case 0 /* handshake */:
+                    game.world.player.id = message.player.id;
+                    break;
+                case 2 /* cubesAdd */:
+                    for (var _i = 0, _a = message.cubes; _i < _a.length; _i++) {
+                        var cubePosition = _a[_i];
+                        var cube = new Cube(cubePosition);
+                        game.world.cubes.push(cube);
+                        cube.init(true);
+                    }
+                    setTimeout(function () { return game.world.createMashup(); }, 100);
+                    break;
+                case 3 /* playerUpdate */:
+                    if (game.world.players === undefined)
+                        break;
+                    if (message.player.position == null) {
+                        // remove player
+                        console.log(game.world.players);
+                        for (var i = 0; i < game.world.players.length; ++i) {
+                            if (game.world.players[i].id == message.player.id) {
+                                game.world.players[i].remove();
+                                game.world.players.splice(i, 1);
+                                break;
+                            }
+                        }
+                        console.log(game.world.players);
+                    }
+                    else {
+                        var found = null;
+                        for (var _b = 0, _c = game.world.players; _b < _c.length; _b++) {
+                            var player = _c[_b];
+                            if (player.id == message.player.id) {
+                                found = player;
+                                break;
+                            }
+                        }
+                        if (found == null) {
+                            found = new Player(message.player.position);
+                            found.id = message.player.id;
+                            game.world.players.push(found);
+                        }
+                        else {
+                            found.position = message.player.position;
+                            found.updateMeshPosition();
+                        }
+                    }
+                    break;
+            }
+        };
+    }
+    return Connection;
+}());
 var Collision;
 (function (Collision) {
     function rect_rect(r1x1, r1y1, r1x2, r1y2, r2x1, r2y1, r2x2, r2y2) {
@@ -639,4 +669,10 @@ var Collision;
     }
     Collision.circle_point = circle_point;
 })(Collision || (Collision = {}));
-//# sourceMappingURL=app.js.map
+function elementFromHTML(html) {
+    var div = document.createElement('div');
+    div.innerHTML = html;
+    var el = div.firstElementChild;
+    div.removeChild(el);
+    return el;
+}
