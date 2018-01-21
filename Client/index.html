@@ -8,12 +8,35 @@
         body {
             margin: 0;
             overflow: hidden;
+            font-family: 'Segoe UI'
+        }
+
+        h1, h3 {
+            font-weight: lighter;
         }
     </style>
     <script src="app.js"></script>
     <script src="modules/three.js"></script>
 </head>
 <body>
-    
+    <div style="position:absolute; right:0; color: white; font-family: consolas;">
+        <label><input type="checkbox" onchange="game.updateOptions()" id="settings_debug" />Show Info</label>
+        <label><input type="checkbox" onchange="game.updateOptions()" id="settings_fog" />Fog</label>
+        <label><input type="checkbox" onchange="game.updateOptions()" id="settings_wireframe" />Wireframe</label>
+        <label><input type="checkbox" onchange="game.updateOptions(confirm('Reload now?'))" id="settings_aa" />Antialias</label>
+    </div>
+
+    <div id="info" style="display:none; position: absolute; margin:auto; left: 50%;">
+        <div style="position: relative; left: -50%; max-height: calc(50vh); overflow-y: auto; width: 600px; background: rgba(127,127,127,0.5); color: white; padding: 10px;">
+
+            <input type="button" style="float: right" value="close" onclick="document.getElementById('info').style.display='none'" />
+
+            <!--<h1>How to play</h1>
+            Mouse and Keyboad!-->
+
+            <h1>Udates</h1>
+            <div id="versionlog"></div>
+        </div>
+    </div>
 </body>
 </html>

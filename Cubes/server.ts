@@ -159,6 +159,15 @@ app.get("/", (req, res, next) => {
         next()
     }
 })
+app.get("/changelog.json", (req, res, next) => {
+    let filePath = path.resolve('../client/changelog.json')
+
+    if (fs.existsSync(filePath)) {
+        res.sendFile(filePath);
+    } else {
+        next()
+    }
+})
 app.use(express.static(path.resolve('../client/')));
 app.all("*", (req, res) => {
     console.log(req.path, "Not found")

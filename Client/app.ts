@@ -4,6 +4,50 @@
 let game: Game
 window.onload = () => {
     game = new Game()
+    new Info()
+}
+
+
+interface ChangelogEntry {
+    version: string
+    changes: string[]
+}
+class Info {
+    constructor() {
+        let req = new XMLHttpRequest()
+        req.open("GET", "changelog.json")
+        req.onreadystatechange = () => {
+            if (req.readyState == 4 && req.status == 200) {
+                this.changelog(JSON.parse(req.responseText))
+            }
+        }
+        req.send()
+    }
+
+    private changelog(logs: ChangelogEntry[]) {
+
+        logs.sort((a, b) => { return a.version > b.version ? -1 : 1 })
+        console.log(logs)
+
+        if (localStorage.getItem("version") !== logs[0].version) {
+            document.getElementById("info").style.display = "block"
+            localStorage.setItem("version", logs[0].version)
+        }
+
+        let elVersionLog = document.getElementById("versionlog")
+        for (let version of logs) {
+            let elVersion = document.createElement("h3")
+            elVersion.innerText = version.version
+            elVersionLog.appendChild(elVersion)
+            let elVersionsLog = document.createElement("ul")
+            elVersionLog.appendChild(elVersionsLog)
+            for (let log of version.changes) {
+                let elVersionLog = document.createElement("li")
+                elVersionLog.innerText = log
+                elVersionsLog.appendChild(elVersionLog)
+            }
+        }
+    }
 }
 
 class Game {
@@ -22,7 +66,21 @@ class Game {
     keysDown: Input.KEY[] = []
     rollOverMesh: THREE.Mesh
 
+    options = {
+        wireframe: false,
+        antialias: false,
+        fog: false,
+        debugInfo: false,
+    }
+
     constructor() {
+
+        let lsStringOptions = localStorage.getItem("options")
+        if (lsStringOptions !== null) {
+            let lsOptions = JSON.parse(lsStringOptions)
+            this.options = lsOptions
+            this.updateOptionsGUI()
+        }
 
         if (Input.Pointer.isSupported == false) alert("Browser not supported!")
 
@@ -31,13 +89,13 @@ class Game {
         // Scene
         this.scene = new THREE.Scene()
         this.scene.background = new THREE.Color(0)
-        //this.scene.fog = new THREE.Fog(0, 0, 25)
+        if(this.options.fog) this.scene.fog = new THREE.Fog(0, 0, 25)
 
         // Camera
         this.camera = new THREE.PerspectiveCamera(90, 1, 0.1, 1000);
 
         // Renderer
-        this.renderer = new THREE.WebGLRenderer({ antialias: true })
+        this.renderer = new THREE.WebGLRenderer({ antialias: this.options.antialias })
         document.body.appendChild(this.renderer.domElement)
 
         // Setup Lights
@@ -81,6 +139,8 @@ class Game {
             `<div style="position:absolute; left:50%; top:50%; height:1px; width:1px; background:red;pointer-events:none"></div>`))
         this.elDebugInfo = document.body.appendChild(elementFromHTML(
             `<div style="position:absolute; left:0; top:0; width:200px; color: white; font-size:10pt;font-family: Consolas;pointer-events:none"></div>`))
+        this.elDebugInfo.style.display = this.options.debugInfo ? "block" : "none"
+
         let rollOverGeo = new THREE.BoxGeometry(1, 1, 1);
         let rollOverMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000, opacity: 0.2, transparent: true });
         this.rollOverMesh = new THREE.Mesh(rollOverGeo, rollOverMaterial)
@@ -96,6 +156,39 @@ class Game {
             if(this.keysDown[i] == key) return true
         }
         return false
+    }
+
+
+    updateOptionsGUI() {
+        ; (<HTMLInputElement>document.getElementById("settings_aa")).checked = this.options.antialias
+            ; (<HTMLInputElement>document.getElementById("settings_debug")).checked = this.options.debugInfo
+            ; (<HTMLInputElement>document.getElementById("settings_fog")).checked = this.options.fog
+            ; (<HTMLInputElement>document.getElementById("settings_wireframe")).checked = this.options.wireframe
+    }
+
+    updateOptions(reload = false) {
+
+        this.options.antialias = (<HTMLInputElement>document.getElementById("settings_aa")).checked
+        this.options.debugInfo = (<HTMLInputElement>document.getElementById("settings_debug")).checked
+        this.options.fog = (<HTMLInputElement>document.getElementById("settings_fog")).checked
+        this.options.wireframe = (<HTMLInputElement>document.getElementById("settings_wireframe")).checked
+
+        localStorage.setItem("options", JSON.stringify(this.options))
+
+        // Debug Info
+        this.elDebugInfo.style.display = this.options.debugInfo ? "block" : "none"
+
+        // Wireframe
+        game.world.createMashup()
+
+        // Fog
+        if (this.options.fog) {
+            this.scene.fog = new THREE.Fog(0, 0, 25)
+        } else {
+            this.scene.fog = null
+        }
+
+        if (reload) location.reload()
     }
 
     onResize() {
@@ -235,7 +328,8 @@ class Game {
         // Update Log
         this.elDebugInfo.innerHTML =
             `FPS: ${this.fps.toFixed(0)}<br/>` +
-            `Connection: ${this.connection.readyState()}<br/>` +
+        `Connection: ${this.connection.readyState()}<br/>` +
+        `Players: ${this.world.players.length + 1}<br/>` +
             `Cubes: ${this.world.cubes.length}<br/>` +
             `Pointer: ${this.pointer.locked ? "locked" : "not tracking"}<br/>` +
             `Position:<br>&nbsp;
@@ -275,7 +369,6 @@ class World {
     }
 
     mashup: THREE.Mesh = null
-    mashup2: THREE.Mesh = null
     createMashup() {
         console.time("mergeCubesTotal")
         let geom = new THREE.Geometry()
@@ -291,18 +384,9 @@ class World {
 
         this.mashup = new THREE.Mesh(
             new THREE.BufferGeometry().fromGeometry(geom),
-            new THREE.MeshLambertMaterial({ color: 0xffffff }))
+            new THREE.MeshLambertMaterial({ color: 0xffffff, wireframe: game.options.wireframe }))
 
         game.scene.add(this.mashup)
-
-
-        if (this.mashup2) game.scene.remove(this.mashup2)
-
-        this.mashup2 = new THREE.Mesh(
-            new THREE.BufferGeometry().fromGeometry(geom),
-            new THREE.MeshLambertMaterial({ color: 0, wireframe: true }))
-
-        game.scene.add(this.mashup2)
 
         console.timeEnd("mergeCubesTotal")
     }

@@ -1,0 +1,10 @@
+﻿[
+  {
+    "version": "0.0.1",
+    "changes": [
+      "added changelog and how-to-play",
+      "added options for: antialias, fog, debug-info, wireframe",
+      "showing player count in debug info"
+    ]
+  }
+]
