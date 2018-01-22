@@ -55,6 +55,9 @@ wsServer.on("connection", (socket) => {
                 broadcast(data, socket);
                 cubes.push(...data.cubes);
                 break;
+            case 5 /* chat */:
+                broadcast(data, socket);
+                break;
             case 3 /* removeCubes */:
                 broadcast(data, socket);
                 for (let cubePosition of data.cubes) {
@@ -117,6 +120,17 @@ setInterval(() => {
         socket.ping(null, false, true);
     });
 }, 10000);
+let lastUpdateTime = 0;
+fs.watch("../client/", { recursive: true }, (curr, prev) => {
+    let now = Date.now();
+    if (now - lastUpdateTime < 3333)
+        return; // don't promt to often in case multiple files change
+    lastUpdateTime = now;
+    broadcast({
+        type: 5 /* chat */,
+        text: "game updates available (reload game)"
+    });
+});
 // Settings
 app.disable('x-powered-by');
 app.set("strict routing", true);
@@ -125,6 +139,15 @@ app.use(compression());
 // Routes
 app.get("/", (req, res, next) => {
     let filePath = path.resolve('../client/index.html');
+    if (fs.existsSync(filePath)) {
+        res.sendFile(filePath);
+    }
+    else {
+        next();
+    }
+});
+app.get("/changelog.json", (req, res, next) => {
+    let filePath = path.resolve('../client/changelog.json');
     if (fs.existsSync(filePath)) {
         res.sendFile(filePath);
     }

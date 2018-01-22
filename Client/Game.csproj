@@ -69,6 +69,7 @@
     <TypeScriptSourceRoot />
   </PropertyGroup>
   <ItemGroup>
+    <Content Include="changelog.json" />
     <None Include="Web.Debug.config">
       <DependentUpon>Web.config</DependentUpon>
     </None>
@@ -86,6 +87,7 @@
     <TypeScriptCompile Include="Connection.ts" />
     <TypeScriptCompile Include="functions.ts" />
     <TypeScriptCompile Include="Input.ts" />
+    <TypeScriptCompile Include="LocalStorage.ts" />
     <TypeScriptCompile Include="Player.ts" />
     <TypeScriptCompile Include="types.ts" />
   </ItemGroup>
@@ -119,6 +121,7 @@
           <SaveServerSettingsInUserFile>False</SaveServerSettingsInUserFile>
         </WebProjectProperties>
       </FlavorProperties>
+      <UserProperties changelog_1json__JSONSchema="http://json.schemastore.org/appveyor" />
     </VisualStudio>
   </ProjectExtensions>
 </Project>

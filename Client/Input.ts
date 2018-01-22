@@ -1,12 +1,70 @@
 ﻿
 namespace Input {
 
-    export class Pointer {
+    type KeyboardEventCode = "Enter" | "KeyA" | string
+
+    //interface KeyboardEvent {
+    //    code: KeyboardEventCode
+    //}
+
+    type KeysArray = {
+        [index: string]: number
+    }
+
+    export class Keyboard {
+
+        keysDown: KeysArray = {}
+        keyOrder = 0
+
+        constructor() {
+            window.addEventListener("keydown", e => { return this.keydown(e) })
+            window.addEventListener("keyup", e => { return this.keyup(e) })
+            window.addEventListener("blur", () => this.blur())
+        }
+
+        private keydown(e: KeyboardEvent) {
+            if (document.getElementById("chatInput") !== document.activeElement && e.code !== "Enter") {
+                
+                this.keysDown[e.code] = ++this.keyOrder // overflow after 285M years at 1 hit per seconds
+
+                e.preventDefault()
+
+                if (e.keyCode == Input.Key.T) game.traceOn = !game.traceOn
+                if (e.keyCode == Input.Key.P) {
+                    let alt = this.keysDown["AltLeft"] != 0
+                    let pos = game.getRayCubePos(alt)
+                    if (pos != null) {
+                        pos.x += 0.5
+                        if (alt) pos.y += 1
+                        pos.z += 0.5
+                        game.world.player.teleport(pos)
+                    }
+                }
+            }
+            return false
+        }
+
+        private blur() {
+            // Since any key release will not be registered when the window is out of focus,
+            // assume they are released when the window is getting out of focus
+            for (let key in this.keysDown) {
+                this.keysDown[key] = 0
+            }
+        }
+
+        private keyup(e: KeyboardEvent) {
+            // Key might have been down without this window beeing in focus, 
+            // so ignore if it goes without going down while in focus
+            this.keysDown[e.code] = 0
+        }
+    }
+
+    export class PointerLock {
 
         locked: boolean = false
 
-        constructor(public canvas: HTMLCanvasElement) {
-            this.canvas.addEventListener("mousedown", this.canvas.requestPointerLock)
+        constructor(public el: HTMLElement) {
+            this.el.addEventListener("mousedown", this.el.requestPointerLock)
             document.addEventListener('pointerlockchange', () => this.pointerlockchange(), false)
             this.callback = (e) => this.mousemove(e)
         }
@@ -17,10 +75,10 @@ namespace Input {
 
         callback: (e: MouseEvent) => any
         pointerlockchange() {
-            if (document.pointerLockElement === this.canvas && this.locked == false) {
+            if (document.pointerLockElement === this.el && this.locked == false) {
                 this.locked = true
                 document.addEventListener("mousemove", this.callback, false)
-            } else if (document.pointerLockElement !== this.canvas && this.locked == true) {
+            } else if (document.pointerLockElement !== this.el && this.locked == true) {
                 this.locked = false
                 document.removeEventListener("mousemove", this.callback, false)
             }
@@ -54,7 +112,15 @@ namespace Input {
         }
     }
 
-    export const enum KEY {
+    // MouseEvent.button
+    export const enum Button {
+        LEFT = 0,
+        MIDDLE = 1,
+        RIGHT = 2,
+    }
+
+    // KeyboardEvent.keyCode // deprecated
+    export const enum Key {
         BACKSPACE = 8,
         TAB = 9,
 

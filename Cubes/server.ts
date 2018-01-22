@@ -72,6 +72,10 @@ wsServer.on("connection", (socket: WebSocketEx) => {
                 cubes.push(...data.cubes)
                 break
 
+            case MessageType.chat:
+                broadcast(data, socket)
+                break
+
             case MessageType.removeCubes:
                 broadcast(data, socket)
                 for (let cubePosition of data.cubes) {
@@ -142,6 +146,17 @@ setInterval(() => {
         socket.ping(null, false, true);
     });
 }, 10000);
+
+let lastUpdateTime = 0
+fs.watch("../client/", { recursive: true }, (curr, prev) => {
+    let now = Date.now()
+    if (now - lastUpdateTime < 3333) return // don't promt to often in case multiple files change
+    lastUpdateTime = now
+    broadcast({
+        type: MessageType.chat,
+        text: "game updates available (reload game)"
+    })
+})
 
 // Settings
 app.disable('x-powered-by')

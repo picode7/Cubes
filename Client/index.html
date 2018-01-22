@@ -24,19 +24,50 @@
         <label><input type="checkbox" onchange="game.updateOptions()" id="settings_fog" />Fog</label>
         <label><input type="checkbox" onchange="game.updateOptions()" id="settings_wireframe" />Wireframe</label>
         <label><input type="checkbox" onchange="game.updateOptions(confirm('Reload now?'))" id="settings_aa" />Antialias</label>
+        <label>
+            <select type="checkbox" onchange="game.updateOptions()" id="settings_renderScale">
+                <option>25 %</option>
+                <option>50 %</option>
+                <option>75 %</option>
+                <option selected="selected">100 %</option>
+                <option>150 %</option>
+                <option>200 %</option>
+            </select> Render Scale
+        </label>
     </div>
 
     <div id="info" style="display:none; position: absolute; margin:auto; left: 50%;">
         <div style="position: relative; left: -50%; max-height: calc(50vh); overflow-y: auto; width: 600px; background: rgba(127,127,127,0.5); color: white; padding: 10px;">
 
-            <input type="button" style="float: right" value="close" onclick="document.getElementById('info').style.display='none'" />
+            <input type="button" style="position:absolute; right: 0;" value="close" onclick="document.getElementById('info').style.display='none'" />
 
             <!--<h1>How to play</h1>
             Mouse and Keyboad!-->
 
-            <h1>Udates</h1>
+            <h1>Upates</h1>
             <div id="versionlog"></div>
         </div>
     </div>
+
+    <div id="chat" style="display:none; position: absolute; left: 0; bottom: 0; max-height: calc(50vh); overflow-y: auto; width: 400px; background: rgba(127,127,127,0.5); color: white; padding: 10px;">
+
+        <div id="chatLog" style="margin-bottom: 10px"></div>
+
+        <style>
+            #chatInputs {
+                opacity: 0.33
+            }
+
+                #chatInputs:hover, #chatInputs:focus-within {
+                    opacity: 1
+                }
+        </style>
+        <div id="chatInputs">
+            <input id="chatInput" type="text" style="width:340px" placeholder="enter message ..." />
+            <input id="chatSend" type="button" style="width:50px" value="send" />
+        </div>
+
+    </div>
+
 </body>
 </html>

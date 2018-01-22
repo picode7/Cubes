@@ -1,10 +1,62 @@
-﻿[
-  {
-    "version": "0.0.1",
-    "changes": [
-      "added changelog and how-to-play",
-      "added options for: antialias, fog, debug-info, wireframe",
-      "showing player count in debug info"
-    ]
-  }
-]
+﻿{
+
+  "known issues": [
+    "cubeposition from raycast might be wrong",
+    "data might be missed during connection lost and reconnect",
+    "player collision is, meh.",
+    "scrollbar only on chat and auto scroll down on new message"
+  ],
+  "work in progress": [
+    "bug fix: velocity now set to 0 when teleporting",
+    "keyboard issue fix: keypress or keyrelease will not be registered if the window is not in focus, there fore the are now set to not pressed when window loses focus"
+  ],
+  "versions": [
+    {
+      "version": "0.0.5",
+      "changes": [
+        "added option to set render scale",
+        "now attempting to automatically reconnect to server",
+        "sending updated playerposition only if moved",
+        "server is now messaging the clients if there is an game update",
+        "added chat message when player joining or leaving",
+        "teleport with <P>",
+        "switch on player trace with <T>",
+        "trace now only adding points when moving",
+        "added \"work in progress\" and \"known issues\" to changelog"
+      ]
+    },
+    {
+      "version": "0.0.4",
+      "changes": [
+        "when not in focus only rendering at 8 FPS",
+        "slightly increased raycast performance for setting cubes"
+      ]
+    },
+    {
+      "version": "0.0.3",
+      "changes": [
+        "cubes can only be set using left mouse button",
+        "pointer cube now shows as wireframe in white",
+        "respawn triggers now 20 m below the lowest cube",
+        "random cube colors",
+        "increasing fov when fast",
+        "step now bound to framerate"
+      ]
+    },
+    {
+      "version": "0.0.2",
+      "changes": [
+        "added simple chat system",
+        "added spoiler in version log"
+      ]
+    },
+    {
+      "version": "0.0.1",
+      "changes": [
+        "added changelog and how-to-play",
+        "added options for: antialias, fog, debug-info, wireframe",
+        "showing player count in debug info"
+      ]
+    }
+  ]
+}

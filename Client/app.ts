@@ -8,9 +8,13 @@ window.onload = () => {
 }
 
 
-interface ChangelogEntry {
-    version: string
-    changes: string[]
+interface Changelog {
+    "known issues": string[]
+    "work in progress": string[]
+    versions: {
+        version: string
+        changes: string[]
+    }[]
 }
 class Info {
     constructor() {
@@ -24,28 +28,125 @@ class Info {
         req.send()
     }
 
-    private changelog(logs: ChangelogEntry[]) {
+    private changelog(logs: Changelog) {
 
-        logs.sort((a, b) => { return a.version > b.version ? -1 : 1 })
-        console.log(logs)
+        let oldVersion = localStorage.getItem("version")
 
-        if (localStorage.getItem("version") !== logs[0].version) {
+        let oldKnownIssues = localStorage.getItem("knownIssues")
+        let knownIssues = JSON.stringify(logs["known issues"])
+        
+        let oldWorkInProgress = localStorage.getItem("workInProgress")
+        let workInProgress = JSON.stringify(logs["work in progress"])
+
+        logs.versions.sort((a, b) => { return a.version > b.version ? -1 : 1 })
+
+        if (oldVersion == null || oldVersion < logs.versions[0].version
+            || oldKnownIssues != knownIssues
+            || oldWorkInProgress != workInProgress) {
             document.getElementById("info").style.display = "block"
-            localStorage.setItem("version", logs[0].version)
+            localStorage.setItem("version", logs.versions[0].version)
+            localStorage.setItem("knownIssues", knownIssues)
+            localStorage.setItem("workInProgress", workInProgress)
         }
 
         let elVersionLog = document.getElementById("versionlog")
-        for (let version of logs) {
-            let elVersion = document.createElement("h3")
-            elVersion.innerText = version.version
-            elVersionLog.appendChild(elVersion)
-            let elVersionsLog = document.createElement("ul")
-            elVersionLog.appendChild(elVersionsLog)
-            for (let log of version.changes) {
-                let elVersionLog = document.createElement("li")
-                elVersionLog.innerText = log
-                elVersionsLog.appendChild(elVersionLog)
+        let putContentInto = elVersionLog
+        let elSpoilerContent = document.createElement("div")
+
+        headList(oldKnownIssues != knownIssues ? elVersionLog : elSpoilerContent,
+            "known issues", logs["known issues"])
+
+        headList(oldWorkInProgress != workInProgress ? elVersionLog : elSpoilerContent,
+            "work in progress", logs["work in progress"])
+
+        for (let version of logs.versions) {
+            // put content into spoler if it's not new
+            if (oldVersion >= version.version) { putContentInto = elSpoilerContent }
+            headList(putContentInto, version.version, version.changes)
+        }
+        if (elSpoilerContent.childElementCount) {
+            let spoiler = elementFromHTML(`<div style="cursor:pointer;color:lightblue">Show more</div>`)
+            spoiler.onclick = () => { elSpoilerContent.style.display = "block"; spoiler.style.display = "none"}
+            elVersionLog.appendChild(spoiler)
+
+            elSpoilerContent.style.display = "none"
+            elVersionLog.appendChild(elSpoilerContent)
+        }
+
+        function headList(parent: HTMLElement, title: string, list: string[]) {
+            let elTitle = document.createElement("h3")
+            elTitle.innerText = title
+            parent.appendChild(elTitle)
+            let elList = document.createElement("ul")
+            parent.appendChild(elList)
+            for (let log of list) {
+                let elItem = document.createElement("li")
+                elItem.innerText = log
+                elList.appendChild(elItem)
             }
+        }
+    }
+}
+
+class Chat {
+    elC= document.getElementById("chat")
+    elCL = document.getElementById("chatLog")
+    elCI = <HTMLInputElement>document.getElementById("chatInput")
+    elCS = <HTMLInputElement>document.getElementById("chatSend")
+
+    constructor() {
+
+        this.elCS.onclick = () => this.send()
+        this.elCI.onblur = () => this.show()
+
+        window.addEventListener("keydown", (e) => {
+            if (e.keyCode == Input.Key.ENTER) {
+                if (this.elCI !== document.activeElement) {
+                    this.show()
+                    this.elCI.focus()
+                } else {
+                    this.send()
+                    this.elCI.blur()
+                }
+            }
+        })
+    }
+
+    hideTimeout: number
+    show() {
+        this.elC.style.display = "block"
+
+        clearTimeout(this.hideTimeout)
+        this.hideTimeout = setTimeout(() => this.hide(), 5000)
+    }
+
+    hide() {
+        if (this.elCI == document.activeElement) return
+
+        this.elC.style.display = "none"
+        this.elCI.blur()
+    }
+
+    send() {
+
+        let txt = this.elCI.value.trim()
+        this.elCI.value = ""
+
+        this.onmessage(txt, true)
+    }
+
+    onmessage(text, self = false) {
+
+        this.show()
+        this.elCL.appendChild(elementFromHTML(
+            `<div${self?` style="color:#ccc"`:""}>${text}</div>`
+        ))
+
+        if (self) {
+            game.connection.sendMessage({
+                type: MessageType.chat,
+                text: text
+            })
         }
     }
 }
@@ -60,10 +161,12 @@ class Game {
 
     world: World
     connection: Connection
+    chat = new Chat()
 
-    pointer: Input.Pointer
+    keyboard = new Input.Keyboard()
+    pointer: Input.PointerLock
+
     raycaster = new THREE.Raycaster()
-    keysDown: Input.KEY[] = []
     rollOverMesh: THREE.Mesh
 
     options = {
@@ -71,6 +174,7 @@ class Game {
         antialias: false,
         fog: false,
         debugInfo: false,
+        renderScale: 100,
     }
 
     constructor() {
@@ -82,7 +186,7 @@ class Game {
             this.updateOptionsGUI()
         }
 
-        if (Input.Pointer.isSupported == false) alert("Browser not supported!")
+        if (Input.PointerLock.isSupported == false) alert("Browser not supported!")
 
         game = this
 
@@ -92,7 +196,7 @@ class Game {
         if(this.options.fog) this.scene.fog = new THREE.Fog(0, 0, 25)
 
         // Camera
-        this.camera = new THREE.PerspectiveCamera(90, 1, 0.1, 1000);
+        this.camera = new THREE.PerspectiveCamera(90, 1, 0.1, 1000)
 
         // Renderer
         this.renderer = new THREE.WebGLRenderer({ antialias: this.options.antialias })
@@ -102,7 +206,7 @@ class Game {
         let ambientLight = new THREE.AmbientLight(0xffffff, 0.4)
         this.scene.add(ambientLight)
         let directionalLight = new THREE.DirectionalLight(0xffffff, 0.8)
-        directionalLight.position.set(1, 1, 0.5).normalize()
+        directionalLight.position.set(1, 1.5, 0.5).normalize()
         this.scene.add(directionalLight)
 
         this.onResize()
@@ -112,24 +216,17 @@ class Game {
 
         // Events
         window.addEventListener("resize", () => this.onResize())
-        this.pointer = new Input.Pointer(this.renderer.domElement)
+        this.pointer = new Input.PointerLock(this.renderer.domElement)
         this.pointer.moveCamera(0, 0)
         window.addEventListener("mousedown", (event) => {
-            this.onclick()
+            this.onclick(event)
+        })
+        window.addEventListener("mouseup", (event) => {
+            this.mouseup(event)
         })
         window.onbeforeunload = function () { // Prevent Ctrl+W ... Chrome!
             return "Really want to quit the game?"
         }
-        window.addEventListener("keydown", (e) => {
-            let pos = this.keysDown.indexOf(e.keyCode)
-            if (pos != -1) this.keysDown.splice(pos, 1)
-            this.keysDown.push(e.keyCode)
-            e.preventDefault()
-            return false
-        })
-        window.addEventListener("keyup", (e) => {
-            this.keysDown.splice(this.keysDown.indexOf(e.keyCode), 1)
-        })
 
         // Network
         this.connection = new Connection()
@@ -142,28 +239,21 @@ class Game {
         this.elDebugInfo.style.display = this.options.debugInfo ? "block" : "none"
 
         let rollOverGeo = new THREE.BoxGeometry(1, 1, 1);
-        let rollOverMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000, opacity: 0.2, transparent: true });
+        let rollOverMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true });
         this.rollOverMesh = new THREE.Mesh(rollOverGeo, rollOverMaterial)
 
         // Start rendering
         this.stepPreviousTime = Date.now()
         this.animate()
-        setInterval(() => this.step(), 1000 / 100)
+        //setInterval(() => this.step(), 1000 / 30)
     }
-
-    isKeyDown(key: Input.KEY): boolean {
-        for (let i = 0, max = this.keysDown.length; i < max; ++i) {
-            if(this.keysDown[i] == key) return true
-        }
-        return false
-    }
-
 
     updateOptionsGUI() {
         ; (<HTMLInputElement>document.getElementById("settings_aa")).checked = this.options.antialias
             ; (<HTMLInputElement>document.getElementById("settings_debug")).checked = this.options.debugInfo
             ; (<HTMLInputElement>document.getElementById("settings_fog")).checked = this.options.fog
-            ; (<HTMLInputElement>document.getElementById("settings_wireframe")).checked = this.options.wireframe
+            ; (<HTMLInputElement>document.getElementById("settings_wireframe")).checked = this.options.wireframe;
+        (<HTMLSelectElement>document.getElementById("settings_renderScale")).selectedIndex = [25,50,75,100,150,200].indexOf(this.options.renderScale)
     }
 
     updateOptions(reload = false) {
@@ -172,7 +262,8 @@ class Game {
         this.options.debugInfo = (<HTMLInputElement>document.getElementById("settings_debug")).checked
         this.options.fog = (<HTMLInputElement>document.getElementById("settings_fog")).checked
         this.options.wireframe = (<HTMLInputElement>document.getElementById("settings_wireframe")).checked
-
+        this.options.renderScale = [25, 50, 75, 100, 150, 200][(<HTMLSelectElement>document.getElementById("settings_renderScale")).selectedIndex]
+        
         localStorage.setItem("options", JSON.stringify(this.options))
 
         // Debug Info
@@ -188,71 +279,82 @@ class Game {
             this.scene.fog = null
         }
 
+        // Render Scale
+        this.renderer.setPixelRatio(this.options.renderScale / 100 * window.devicePixelRatio)
+
         if (reload) location.reload()
     }
 
     onResize() {
 
         // Update render size
-        this.renderer.setSize(window.innerWidth, window.innerHeight)
+        this.renderer.setPixelRatio(this.options.renderScale / 100 * window.devicePixelRatio)
+        this.renderer.setSize(window.innerWidth , window.innerHeight)
 
         // Update camera aspect ratio
         this.camera.aspect = window.innerWidth / window.innerHeight
         this.camera.updateProjectionMatrix()
     }
-
-    onclick() {
+    mouseup(e: MouseEvent) {
+        if(e.button == 2) this.mouseRightDown = false
+    }
+    mouseRightDown = false
+    traceOn= false
+    onclick(e: MouseEvent) {
 
         // Put block
         if (this.pointer.locked) {
-            this.raycaster.set(this.camera.position, this.camera.getWorldDirection())
-            let intersects = this.raycaster.intersectObjects(this.scene.children.filter((obj) => {
-                if (obj == this.rollOverMesh) return false
-                if (obj == this.world.player.mesh) return false
-                for (let player of this.world.players)
-                    if (obj == player.mesh) return false
-                return true
-            }))
+            if (e.button == 0) {
+                let altKey = this.keyboard.keysDown["AltLeft"]
+                let pos = this.getRayCubePos(altKey)
 
-            if (intersects.length > 0) {
-                let altKey = this.isKeyDown(Input.KEY.ALT)
-                let position = this.getRayCubePos(intersects[0], altKey)
+                if (pos != null) {
+                    if (altKey == false) {
+                        // Add Cube
+                        let cube = new Cube({ x: pos.x, y: pos.y, z: pos.z })
+                        this.world.cubes.push(cube)
+                        cube.init(true)
 
-                if (altKey == false) {
-                    // Add Cube
-                    let cube = new Cube({ x: position.x, y: position.y, z: position.z })
-                    this.world.cubes.push(cube)
-                    cube.init(true)
+                        this.world.createMashup()
 
-                    this.world.createMashup()
-
-                    this.connection.sendMessage({
-                        type: MessageType.cubesAdd,
-                        cubes: [cube.position]
-                    })
-                    cube.mesh.position = position
-                } else {
-                    // Remove Cube
-                    for (let i = 0, max = this.world.cubes.length; i < max; ++i) {
-                        if (this.world.cubes[i].position.x == position.x &&
-                            this.world.cubes[i].position.y == position.y &&
-                            this.world.cubes[i].position.z == position.z) {
-                            this.connection.sendMessage({
-                                type: MessageType.removeCubes,
-                                cubes: [this.world.cubes[i].position]
-                            })
-                            this.world.cubes[i].remove()
-                            this.world.cubes.splice(i, 1)
-                            this.world.createMashup()
-                            break
+                        this.connection.sendMessage({
+                            type: MessageType.cubesAdd,
+                            cubes: [cube.position]
+                        })
+                        cube.mesh.position = pos.clone()
+                    } else {
+                        // Remove Cube
+                        for (let i = 0, max = this.world.cubes.length; i < max; ++i) {
+                            if (this.world.cubes[i].position.x == pos.x &&
+                                this.world.cubes[i].position.y == pos.y &&
+                                this.world.cubes[i].position.z == pos.z) {
+                                this.connection.sendMessage({
+                                    type: MessageType.removeCubes,
+                                    cubes: [this.world.cubes[i].position]
+                                })
+                                this.world.cubes[i].remove()
+                                this.world.cubes.splice(i, 1)
+                                this.world.createMashup()
+                                break
+                            }
                         }
                     }
                 }
+            } else if (e.button == 2) {
+                this.mouseRightDown = true
+
             }
+
         }
     }
 
-    getRayCubePos(intersect: THREE.Intersection, alt: boolean) {
+    getRayCubePos(alt: boolean) {
+        this.raycaster.set(this.camera.position, this.camera.getWorldDirection())
+        let intersects = this.raycaster.intersectObjects([this.world.mashup])
+
+        if (intersects.length == 0) return null
+        let intersect = intersects[0]
+
         if (alt) {
             let n = intersect.face.normal.clone()
             if (n.x > 0) n.x = -1; else n.x = 0
@@ -273,42 +375,42 @@ class Game {
     fps = 0
     animate() {
 
-        let timeNow = performance.now()
-        this.fps = this.fps / 10 * 9 + 1000 / (timeNow - this.timeLastFrame) / 10 * 1
-        this.timeLastFrame = timeNow
+        if (document.hasFocus() || performance.now() - this.timeLastFrame > 1000 / 8) {
+            let timeNow = performance.now()
+            this.fps = this.fps / 10 * 9 + 1000 / (timeNow - this.timeLastFrame) / 10 * 1
+            this.timeLastFrame = timeNow
 
-        // Raycast poiting position
-        if (this.pointer.locked) {
-            this.raycaster.set(this.camera.position, this.camera.getWorldDirection())
-            let intersects = this.raycaster.intersectObjects(this.scene.children.filter((obj) => {
-                if (obj == this.rollOverMesh) return false
-                if (obj == this.world.player.mesh) return false
-                for (let player of this.world.players)
-                    if (obj == player.mesh) return false
-                return true
-            }))
+            let t = this.camera.fov
+            this.camera.fov = this.world.player.fast ? 100 : 90
+            if (t != this.camera.fov) this.camera.updateProjectionMatrix()
 
-            if (intersects.length == 0) {
-                if (this.meshShowing) {
-                    this.meshShowing = false
-                    this.scene.remove(this.rollOverMesh)
+            this.step()
+
+            // Raycast poiting position
+            if (this.pointer.locked) {
+                let pos = this.getRayCubePos(this.keyboard.keysDown["AltLeft"])
+
+                if (pos == null) {
+                    if (this.meshShowing) {
+                        this.meshShowing = false
+                        this.scene.remove(this.rollOverMesh)
+                    }
+                } else {
+                    this.rollOverMesh.position.copy(pos)
+                    this.rollOverMesh.position.addScalar(0.5)
+                    if (!this.meshShowing) {
+                        this.scene.add(this.rollOverMesh)
+                        this.meshShowing = true
+                    }
                 }
-            } else if (!this.meshShowing) {
-                this.scene.add(this.rollOverMesh)
-                this.meshShowing = true
+            } else {
+                this.meshShowing = false
+                this.scene.remove(this.rollOverMesh)
             }
 
-            if (intersects.length) {
-                this.rollOverMesh.position.copy(this.getRayCubePos(intersects[0], this.isKeyDown(Input.KEY.ALT)))
-                this.rollOverMesh.position.addScalar(0.5)
-            }
-        } else {
-            this.meshShowing = false
-            this.scene.remove(this.rollOverMesh)
+            // Render Scene
+            this.renderer.render(this.scene, this.camera)
         }
-
-        // Render Scene
-        this.renderer.render(this.scene, this.camera)
 
         // Ask to do it again next Frame
         requestAnimationFrame(() => this.animate())
@@ -328,7 +430,7 @@ class Game {
         // Update Log
         this.elDebugInfo.innerHTML =
             `FPS: ${this.fps.toFixed(0)}<br/>` +
-        `Connection: ${this.connection.readyState()}<br/>` +
+            `Connection: ${this.connection.readyState()} ${this.connection.handshake}<br/>` +
         `Players: ${this.world.players.length + 1}<br/>` +
             `Cubes: ${this.world.cubes.length}<br/>` +
             `Pointer: ${this.pointer.locked ? "locked" : "not tracking"}<br/>` +
@@ -352,6 +454,8 @@ class World {
     player: Player
     players: Player[] = []
 
+    lowestPoint = Infinity
+
     constructor() {
     }
 
@@ -366,6 +470,9 @@ class World {
 
     step(deltaTime: number) {
         this.player.step(deltaTime)
+        for (let player of this.players) {
+            player.step(deltaTime)
+        }
     }
 
     mashup: THREE.Mesh = null
@@ -384,12 +491,30 @@ class World {
 
         this.mashup = new THREE.Mesh(
             new THREE.BufferGeometry().fromGeometry(geom),
-            new THREE.MeshLambertMaterial({ color: 0xffffff, wireframe: game.options.wireframe }))
+            new THREE.MeshLambertMaterial({ color: 0xffffff, wireframe: game.options.wireframe, vertexColors: THREE.FaceColors }))
 
         game.scene.add(this.mashup)
 
         console.timeEnd("mergeCubesTotal")
     }
+}
+
+class SpriteObject {
+
+    position: THREE.Vector3
+    velocity: THREE.Vector3
+
+    constructor(pos: Vector3) {
+        var spriteMaterial = new THREE.SpriteMaterial({ /*map: spriteMap,*/ color: 0xffffff })
+        var sprite = new THREE.Sprite(spriteMaterial)
+
+        this.position = new THREE.Vector3(pos.x, pos.y, pos.z)
+        sprite.position.copy(this.position)
+        this.velocity = new THREE.Vector3()
+        sprite.scale.set(.1,.1,.1)
+        game.scene.add(sprite)
+    }
+
 }
 
 class Cube {
@@ -409,6 +534,7 @@ class Cube {
 
     constructor(position: Vector3) {
         this.position = position
+        if (this.position.y < game.world.lowestPoint) game.world.lowestPoint = this.position.y
     }
 
     init(updateNeighbours = false) {
@@ -453,30 +579,35 @@ class Cube {
             vtbr = geom.vertices.push(new THREE.Vector3(0, 1, 1)) - 1
         }
 
+        let c1 = new THREE.Color().setRGB(Math.random(), Math.random(), Math.random())
+        let c0 = c1.clone().multiplyScalar(0.5)
+        let c2 = c1.clone().multiplyScalar(0.8)
+        let c3 = c1.clone().multiplyScalar(0.9)
+
         // Faces
         if (this.neighbours.bottom == null) {
-            geom.faces.push(new THREE.Face3(vbfl, vbbr, vbbl, new THREE.Vector3(0, -1, 0)))
-            geom.faces.push(new THREE.Face3(vbbr, vbfl, vbfr, new THREE.Vector3(0, -1, 0)))
+            geom.faces.push(new THREE.Face3(vbfl, vbbr, vbbl, new THREE.Vector3(0, -1, 0), c0))
+            geom.faces.push(new THREE.Face3(vbbr, vbfl, vbfr, new THREE.Vector3(0, -1, 0), c0))
         }
         if (this.neighbours.top == null) {
-            geom.faces.push(new THREE.Face3(vtbl, vtbr, vtfl, new THREE.Vector3(0, +1, 0)))
-            geom.faces.push(new THREE.Face3(vtfr, vtfl, vtbr, new THREE.Vector3(0, +1, 0)))
+            geom.faces.push(new THREE.Face3(vtbl, vtbr, vtfl, new THREE.Vector3(0, +1, 0), c1))
+            geom.faces.push(new THREE.Face3(vtfr, vtfl, vtbr, new THREE.Vector3(0, +1, 0), c1))
         }
         if (this.neighbours.left == null) {
-            geom.faces.push(new THREE.Face3(vbbl, vtbl, vbfl, new THREE.Vector3(0, 0, -1)))
-            geom.faces.push(new THREE.Face3(vtfl, vbfl, vtbl, new THREE.Vector3(0, 0, -1)))
+            geom.faces.push(new THREE.Face3(vbbl, vtbl, vbfl, new THREE.Vector3(0, 0, -1), c2))
+            geom.faces.push(new THREE.Face3(vtfl, vbfl, vtbl, new THREE.Vector3(0, 0, -1), c2))
         }
         if (this.neighbours.right == null) {
-            geom.faces.push(new THREE.Face3(vbfr, vtbr, vbbr, new THREE.Vector3(0, 0, +1)))
-            geom.faces.push(new THREE.Face3(vtbr, vbfr, vtfr, new THREE.Vector3(0, 0, +1)))
+            geom.faces.push(new THREE.Face3(vbfr, vtbr, vbbr, new THREE.Vector3(0, 0, +1), c2))
+            geom.faces.push(new THREE.Face3(vtbr, vbfr, vtfr, new THREE.Vector3(0, 0, +1), c2))
         }
         if (this.neighbours.back == null) {
-            geom.faces.push(new THREE.Face3(vbbl, vbbr, vtbl, new THREE.Vector3(-1, 0, 0)))
-            geom.faces.push(new THREE.Face3(vtbr, vtbl, vbbr, new THREE.Vector3(-1, 0, 0)))
+            geom.faces.push(new THREE.Face3(vbbl, vbbr, vtbl, new THREE.Vector3(-1, 0, 0), c3))
+            geom.faces.push(new THREE.Face3(vtbr, vtbl, vbbr, new THREE.Vector3(-1, 0, 0), c3))
         }
         if (this.neighbours.front == null) {
-            geom.faces.push(new THREE.Face3(vtfl, vbfr, vbfl, new THREE.Vector3(+1, 0, 0)))
-            geom.faces.push(new THREE.Face3(vbfr, vtfl, vtfr, new THREE.Vector3(+1, 0, 0)))
+            geom.faces.push(new THREE.Face3(vtfl, vbfr, vbfl, new THREE.Vector3(+1, 0, 0), c3))
+            geom.faces.push(new THREE.Face3(vbfr, vtfl, vtfr, new THREE.Vector3(+1, 0, 0), c3))
         }
 
         this.mesh = new THREE.Mesh(
@@ -513,6 +644,14 @@ class Cube {
         if (this.neighbours.top) {
             this.neighbours.top.neighbours.bottom = null
             this.neighbours.top.buildGeometry()
+        }
+        
+        if (this.position.y == game.world.lowestPoint) {
+            game.world.lowestPoint = Infinity
+            for (let cube of game.world.cubes) {
+                if (cube.position.y < game.world.lowestPoint)
+                    game.world.lowestPoint = cube.position.y
+            }
         }
     }
 

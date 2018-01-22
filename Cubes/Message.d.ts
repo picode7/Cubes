@@ -5,6 +5,8 @@ declare const enum MessageType {
     cubesAdd,
     removeCubes,
     playerUpdate,
+    chat,
+    system,
 }
 
 interface Message {
@@ -14,4 +16,5 @@ interface Message {
         id: string,
         position: { x: number, y: number, z: number }
     }
+    text?: string
 }
