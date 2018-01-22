@@ -113,10 +113,11 @@ wsServer.on("connection", (socket: WebSocketEx) => {
     })
 
     socket.on("error", (event) => {
-        console.log("client error", event)
+        if ((<any>event).code != "ECONNRESET") // yeah well ignore this one, it should fire onclose anyway
+            console.log("client error", event, (<any>event).code)
     })
 
-    socket.on("close", (code, reason) => {
+    socket.on("close", (code, reason) => { // https://developer.mozilla.org/en-US/docs/Web/API/CloseEvent
         let message: Message = {
             type: MessageType.playerUpdate,
             player: {
