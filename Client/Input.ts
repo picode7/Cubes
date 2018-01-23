@@ -8,30 +8,58 @@ namespace Input {
     //}
 
     type KeysArray = {
-        [index: string]: number
+        [index: string]: { pressed: number, signals: { down: Signal, up: Signal } }
+    }
+
+    class Signal {
+        callbacks: (() => any)[] = []
+        register(c: () => any) {
+            this.callbacks.push(c)
+        }
+        send() {
+            for (let i = 0, max = this.callbacks.length; i < max; ++i) {
+                this.callbacks[i]()
+            }
+        }
     }
 
     export class Keyboard {
 
-        keysDown: KeysArray = {}
+        _keys: KeysArray = {}
         keyOrder = 0
 
+        key(key: KeyboardEventCode) {
+            if (this._keys[key] === undefined) {
+                this._keys[key] = {
+                    pressed: 0,
+                    signals: {
+                        down: new Signal(),
+                        up: new Signal(),
+                    }
+                }
+            }
+            return this._keys[key]
+        }
+
         constructor() {
-            window.addEventListener("keydown", e => { return this.keydown(e) })
-            window.addEventListener("keyup", e => { return this.keyup(e) })
+            window.addEventListener("keydown", e => { return this.onkeydown(e) })
+            window.addEventListener("keyup", e => { return this.onkeyup(e) })
             window.addEventListener("blur", () => this.blur())
         }
 
-        private keydown(e: KeyboardEvent) {
+        private onkeydown(e: KeyboardEvent) {
             if (document.getElementById("chatInput") !== document.activeElement && e.code !== "Enter") {
                 
-                this.keysDown[e.code] = ++this.keyOrder // overflow after 285M years at 1 hit per seconds
-
+                let key = this.key(e.code)
+                let t = key.pressed
+                key.pressed = ++this.keyOrder // overflow after 285M years at 1 hit per seconds
+                if(t == 0) key.signals.down.send()
+                
                 e.preventDefault()
 
                 if (e.keyCode == Input.Key.T) game.traceOn = !game.traceOn
                 if (e.keyCode == Input.Key.P) {
-                    let alt = this.keysDown["AltLeft"] != 0
+                    let alt = this.key("AltLeft").pressed != 0
                     let pos = game.getRayCubePos(alt)
                     if (pos != null) {
                         pos.x += 0.5
@@ -47,15 +75,24 @@ namespace Input {
         private blur() {
             // Since any key release will not be registered when the window is out of focus,
             // assume they are released when the window is getting out of focus
-            for (let key in this.keysDown) {
-                this.keysDown[key] = 0
+            for (let _key in this._keys) {
+                let key = this.key(_key)
+                if (key.pressed > 0) {
+                    key.pressed = 0
+                    key.signals.up.send()
+                }
             }
         }
 
-        private keyup(e: KeyboardEvent) {
+        private onkeyup(e: KeyboardEvent) {
             // Key might have been down without this window beeing in focus, 
             // so ignore if it goes without going down while in focus
-            this.keysDown[e.code] = 0
+            let key = this.key(e.code)
+            let t = key.pressed
+            if (t > 0) {
+                key.pressed = 0
+                key.signals.up.send()
+            }
         }
     }
 
