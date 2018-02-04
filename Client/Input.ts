@@ -48,9 +48,9 @@ namespace Input {
         }
 
         private onkeydown(e: KeyboardEvent) {
-            if (document.getElementById("chatInput") !== document.activeElement && e.code !== "Enter") {
+            if (document.getElementById("chatInput") !== document.activeElement && e.key !== "Enter") {
                 
-                let key = this.key(e.code)
+                let key = this.key(e.key)
                 let t = key.pressed
                 key.pressed = ++this.keyOrder // overflow after 285M years at 1 hit per seconds
                 if(t == 0) key.signals.down.send()
@@ -87,7 +87,7 @@ namespace Input {
         private onkeyup(e: KeyboardEvent) {
             // Key might have been down without this window beeing in focus, 
             // so ignore if it goes without going down while in focus
-            let key = this.key(e.code)
+            let key = this.key(e.key)
             let t = key.pressed
             if (t > 0) {
                 key.pressed = 0

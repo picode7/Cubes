@@ -305,7 +305,7 @@ class Game {
         // Put block
         if (this.pointer.locked) {
             if (e.button == 0) {
-                let altKey = this.keyboard.key("AltLeft").pressed > 0
+                let altKey = this.keyboard.key("Alt").pressed > 0
                 let pos = this.getRayCubePos(altKey)
 
                 if (pos != null) {
@@ -388,7 +388,7 @@ class Game {
 
             // Raycast poiting position
             if (this.pointer.locked) {
-                let pos = this.getRayCubePos(this.keyboard.key("AltLeft").pressed > 0)
+                let pos = this.getRayCubePos(this.keyboard.key("Alt").pressed > 0)
 
                 if (pos == null) {
                     if (this.meshShowing) {

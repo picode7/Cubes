@@ -21,7 +21,7 @@ class Player {
         this.spawn()
 
         if (controled) {
-            let key = game.keyboard.key("ShiftLeft")
+            let key = game.keyboard.key("Shift")
             key.signals.down.register(() => {
                 this.fast = !this.fast
             })
@@ -92,13 +92,13 @@ class Player {
             let walkSideSpeed = 0
 
             // Keyboard Input
-            if (game.keyboard.key("KeyW").pressed > 0 || game.keyboard.key("KeyS").pressed > 0) {
-                walkSpeed = 6 / 3.6 * (game.keyboard.key("KeyW").pressed < game.keyboard.key("KeyS").pressed ? -1 : 1)
+            if (game.keyboard.key("w").pressed > 0 || game.keyboard.key("s").pressed > 0) {
+                walkSpeed = 6 / 3.6 * (game.keyboard.key("w").pressed < game.keyboard.key("s").pressed ? -1 : 1)
             }
-            if (game.keyboard.key("KeyA").pressed > 0 || game.keyboard.key("KeyD").pressed > 0) {
-                walkSideSpeed = 6 / 3.6 * (game.keyboard.key("KeyD").pressed < game.keyboard.key("KeyA").pressed ? -1 : 1)
+            if (game.keyboard.key("a").pressed > 0 || game.keyboard.key("d").pressed > 0) {
+                walkSideSpeed = 6 / 3.6 * (game.keyboard.key("KeyD").pressed < game.keyboard.key("a").pressed ? -1 : 1)
             }
-            if (game.keyboard.key("Space").pressed > 0) {
+            if (game.keyboard.key(" ").pressed > 0) {
                 if (this.velocityY == 0) this.velocityY = 9.81 / 2
             }
 
