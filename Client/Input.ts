@@ -1,7 +1,7 @@
 ﻿
 namespace Input {
 
-    type KeyboardEventCode = "Enter" | "KeyA" | string
+    type KeyboardEventCode = string
 
     //interface KeyboardEvent {
     //    code: KeyboardEventCode
@@ -23,14 +23,14 @@ namespace Input {
         }
 
         private keydown(e: KeyboardEvent) {
-            if (document.getElementById("chatInput") !== document.activeElement && e.code !== "Enter") {
+            if (document.getElementById("chatInput") !== document.activeElement && e.key !== "Enter") {
                 
-                this.keysDown[e.code] = ++this.keyOrder // overflow after 285M years at 1 hit per seconds
+                this.keysDown[e.key] = ++this.keyOrder // overflow after 285M years at 1 hit per seconds
 
                 e.preventDefault()
 
-                if (e.keyCode == Input.Key.T) game.traceOn = !game.traceOn
-                if (e.keyCode == Input.Key.P) {
+                if (e.key == "t") game.traceOn = !game.traceOn
+                if (e.key == "p") {
                     let alt = this.keysDown["AltLeft"] != 0
                     let pos = game.getRayCubePos(alt)
                     if (pos != null) {
@@ -55,7 +55,7 @@ namespace Input {
         private keyup(e: KeyboardEvent) {
             // Key might have been down without this window beeing in focus, 
             // so ignore if it goes without going down while in focus
-            this.keysDown[e.code] = 0
+            this.keysDown[e.key] = 0
         }
     }
 

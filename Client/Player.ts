@@ -88,16 +88,16 @@ class Player {
             this.fast = false
 
             // Keyboard Input
-            if (game.keyboard.keysDown["KeyW"] > 0 || game.keyboard.keysDown["KeyS"] > 0) {
-                walkSpeed = 6 / 3.6 * (game.keyboard.keysDown["KeyW"] < game.keyboard.keysDown["KeyS"] ? -1 : 1)
+            if (game.keyboard.keysDown["w"] > 0 || game.keyboard.keysDown["s"] > 0) {
+                walkSpeed = 6 / 3.6 * (game.keyboard.keysDown["w"] < game.keyboard.keysDown["s"] ? -1 : 1)
             }
-            if (game.keyboard.keysDown["KeyA"] > 0 || game.keyboard.keysDown["KeyD"] > 0) {
-                walkSideSpeed = 6 / 3.6 * (game.keyboard.keysDown["KeyD"] < game.keyboard.keysDown["KeyA"] ? -1 : 1)
+            if (game.keyboard.keysDown["a"] > 0 || game.keyboard.keysDown["d"] > 0) {
+                walkSideSpeed = 6 / 3.6 * (game.keyboard.keysDown["d"] < game.keyboard.keysDown["a"] ? -1 : 1)
             }
-            if (game.keyboard.keysDown["Space"] > 0) {
+            if (game.keyboard.keysDown[" "] > 0) {
                 if (this.velocityY == 0) this.velocityY = 9.81 / 2
             }
-            if (game.keyboard.keysDown["ShiftLeft"] > 0) {
+            if (game.keyboard.keysDown["Shift"] > 0) {
                 this.fast = true
             }
 
