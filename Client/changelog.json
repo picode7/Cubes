@@ -7,6 +7,7 @@
     "scrollbar only on chat and auto scroll down on new message"
   ],
   "work in progress": [
+    "fixed keyboard for all browsers",
     "cubes can now have a texture",
     "fast now toggles when clicking shift",
     "bug fix: velocity now set to 0 when teleporting",
