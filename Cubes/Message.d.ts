@@ -9,9 +9,25 @@ declare const enum MessageType {
     system,
 }
 
+declare const enum CUBE_TYPE {
+    stone,
+    glas,
+    mono,
+}
+
+interface COLOR_RGB {
+    r: number, g: number, b: number,
+}
+
+interface Cube_Data {
+    position: { x: number, y: number, z: number },
+    type: CUBE_TYPE,
+    color: COLOR_RGB,
+}
+
 interface Message {
     type: MessageType
-    cubes?: { x: number, y: number, z: number }[]
+    cubes?: Cube_Data[]
     player?: {
         id: string,
         position: { x: number, y: number, z: number }

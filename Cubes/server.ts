@@ -18,13 +18,34 @@ class Player {
     position: {x: number, y: number, z: number}
 }
 
-let cubes: { x: number, y: number, z: number }[] = []
+let cubes: Cube_Data[] = []
 load()
 setInterval(() => save(), 10 * 1000)
 function load() {
     fs.readFile("../data.json", 'utf8', (err, data) => {
         if (!err) {
             cubes = JSON.parse(data)
+
+            // uprade cube version
+            for (let cube of cubes) {
+                if ((<any>cube).x != undefined) {
+                    if (cube.position == undefined) (<any>cube).position = {}
+                    cube.position.x = (<any>cube).x
+                    delete (<any>cube).x
+                }
+                if ((<any>cube).y != undefined) {
+                    if (cube.position == undefined) (<any>cube).position = {}
+                    cube.position.y = (<any>cube).y
+                    delete (<any>cube).y
+                }
+                if ((<any>cube).z != undefined) {
+                    if (cube.position == undefined) (<any>cube).position = {}
+                    cube.position.z = (<any>cube).z
+                    delete (<any>cube).z
+                }
+                if (cube.color == undefined) cube.color = { r: 0.5, g: 0.5, b: 0.5 }
+                if (cube.type == undefined) cube.type = CUBE_TYPE.stone
+            }
         }
 
         // Default platform
@@ -37,7 +58,7 @@ function load() {
                             y == 0 ||
                             ((x == 0 || x == 7) && (z == 7 || z == 0))
                         ) {
-                            cubes.push({ x: x, y: y, z: z })
+                            cubes.push({ position: { x: x, y: y, z: z }, type: CUBE_TYPE.stone, color: { r: 0.5, g: 0.5, b: 0.5 } })
                         }
                     }
                 }
@@ -78,11 +99,11 @@ wsServer.on("connection", (socket: WebSocketEx) => {
 
             case MessageType.removeCubes:
                 broadcast(data, socket)
-                for (let cubePosition of data.cubes) {
+                for (let cubeData of data.cubes) {
                     for (let i = 0, max = cubes.length; i < max; ++i) {
-                        if (cubes[i].x == cubePosition.x &&
-                            cubes[i].y == cubePosition.y &&
-                            cubes[i].z == cubePosition.z) {
+                        if (cubes[i].position.x == cubeData.position.x &&
+                            cubes[i].position.y == cubeData.position.y &&
+                            cubes[i].position.z == cubeData.position.z) {
                             cubes.splice(i, 1)
                             break
                         }

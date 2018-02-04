@@ -190,13 +190,15 @@ class Player {
             || this.prevPosition.y != this.position.y
             || this.prevPosition.z != this.position.z) {
 
-            game.connection.sendMessage({
-                type: MessageType.playerUpdate,
-                player: {
-                    id: this.id,
-                    position: this.position
-                }
-            })
+            if (this.controled) {
+                game.connection.sendMessage({
+                    type: MessageType.playerUpdate,
+                    player: {
+                        id: this.id,
+                        position: this.position
+                    }
+                })
+            }
 
             if (game.traceOn) new SpriteObject(this.position)
 

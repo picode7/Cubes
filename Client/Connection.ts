@@ -47,20 +47,24 @@ class Connection {
                     break
 
                 case MessageType.cubesAdd:
-                    for (let cubePosition of message.cubes) {
-                        let cube = new Cube(cubePosition)
+                    let newCubes: Cube[] = []
+                    for (let cubeData of message.cubes) {
+                        let cube = new Cube(cubeData)
+                        newCubes.push(cube)
                         game.world.cubes.push(cube)
+                    }
+                    for (let cube of newCubes) {
                         cube.init(true)
                     }
                     game.world.createMashup()
                     break
 
                 case MessageType.removeCubes:
-                    for (let cubePosition of message.cubes) {
+                    for (let cubeData of message.cubes) {
                         for (let i = 0, max = game.world.cubes.length; i < max; ++i) {
-                            if (game.world.cubes[i].position.x == cubePosition.x &&
-                                game.world.cubes[i].position.y == cubePosition.y &&
-                                game.world.cubes[i].position.z == cubePosition.z) {
+                            if (game.world.cubes[i].position.x == cubeData.position.x &&
+                                game.world.cubes[i].position.y == cubeData.position.y &&
+                                game.world.cubes[i].position.z == cubeData.position.z) {
                                 game.world.cubes[i].remove()
                                 game.world.cubes.splice(i, 1)
                                 break
@@ -94,7 +98,7 @@ class Connection {
                         if (found == null) {
                             // add player
                             game.chat.onmessage("player joined")
-                            found = new Player(message.player.position)
+                            found = new Player(message.player.position, false)
                             found.id = message.player.id
                             game.world.players.push(found)
                         } else {

@@ -57,13 +57,13 @@ namespace Input {
                 
                 e.preventDefault()
 
-                if (e.keyCode == Input.Key.T) game.traceOn = !game.traceOn
-                if (e.keyCode == Input.Key.P) {
-                    let alt = this.key("AltLeft").pressed != 0
-                    let pos = game.getRayCubePos(alt)
+                if (e.key == "t") game.traceOn = !game.traceOn
+                if (e.key == "c") game.copyColor()
+                if (e.key == "p") {
+                    let pos = game.getRayCubePos(true)
                     if (pos != null) {
                         pos.x += 0.5
-                        if (alt) pos.y += 1
+                        pos.y += 1 // go on top
                         pos.z += 0.5
                         game.world.player.teleport(pos)
                     }

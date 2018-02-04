@@ -1,19 +1,33 @@
 ﻿{
 
   "known issues": [
-    "cubeposition from raycast might be wrong",
     "data might be missed during connection lost and reconnect",
     "player collision is, meh.",
     "scrollbar only on chat and auto scroll down on new message"
   ],
   "work in progress": [
-    "fixed keyboard for all browsers",
-    "cubes can now have a texture",
-    "fast now toggles when clicking shift",
-    "bug fix: velocity now set to 0 when teleporting",
-    "keyboard issue fix: keypress or keyrelease will not be registered if the window is not in focus, there fore the are now set to not pressed when window loses focus"
   ],
   "versions": [
+    {
+      "version": "0.1.0",
+      "changes": [
+        "chat now scrolls down automatically when having a scrolling bar",
+        "empty chat messages are not beeing send",
+        "added time tag to chat messages",
+        "cubes now have walls towards transparent cubes",
+        "teleport now always goes on top of the pointed cube",
+        "bug fix: floating-point-number-pressision-problem when raycasting on a cube could result in selecting a neighbour instead",
+        "select a color with \"C\" while pointing at a cube or in the void to set it to random",
+        "select cube type with mouse wheel",
+        "block properties are now saved",
+        "transparent blocks",
+        "fixed keyboard for all browsers",
+        "cubes can now have a texture",
+        "fast now toggles when clicking shift",
+        "bug fix: velocity now set to 0 when teleporting",
+        "keyboard issue fix: keypress or keyrelease will not be registered if the window is not in focus, there fore the are now set to not pressed when window loses focus"
+      ]
+    },
     {
       "version": "0.0.5",
       "changes": [

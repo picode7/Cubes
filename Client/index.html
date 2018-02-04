@@ -49,9 +49,9 @@
         </div>
     </div>
 
-    <div id="chat" style="display:none; position: absolute; left: 0; bottom: 0; max-height: calc(50vh); overflow-y: auto; width: 400px; background: rgba(127,127,127,0.5); color: white; padding: 10px;">
+    <div id="chat" style="display:none; position: absolute; left: 0; bottom: 0; max-height: calc(50vh); width: 400px; background: rgba(127,127,127,0.5); color: white; padding: 10px;">
 
-        <div id="chatLog" style="margin-bottom: 10px"></div>
+        <div id="chatLog" style=" overflow-y: auto; margin-bottom: 10px; max-height: calc(50vh - 50px);"></div>
 
         <style>
             #chatInputs {
@@ -62,7 +62,7 @@
                     opacity: 1
                 }
         </style>
-        <div id="chatInputs">
+        <div id="chatInputs" style="height:50px;">
             <input id="chatInput" type="text" style="width:340px" placeholder="enter message ..." />
             <input id="chatSend" type="button" style="width:50px" value="send" />
         </div>
