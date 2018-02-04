@@ -305,7 +305,7 @@ class Game {
         // Put block
         if (this.pointer.locked) {
             if (e.button == 0) {
-                let altKey = this.keyboard.keysDown["Alt"] != 0
+                let altKey = this.keyboard.key("AltLeft").pressed > 0
                 let pos = this.getRayCubePos(altKey)
 
                 if (pos != null) {
@@ -388,7 +388,7 @@ class Game {
 
             // Raycast poiting position
             if (this.pointer.locked) {
-                let pos = this.getRayCubePos(this.keyboard.keysDown["Alt"] != 0)
+                let pos = this.getRayCubePos(this.keyboard.key("AltLeft").pressed > 0)
 
                 if (pos == null) {
                     if (this.meshShowing) {
@@ -461,7 +461,7 @@ class World {
 
     init() {
 
-        this.player = new Player({ x: 4, y: 2, z: 4 })
+        this.player = new Player({ x: 4, y: 2, z: 4 }, true)
 
         for (let cube of this.cubes) {
             cube.init()
@@ -486,13 +486,19 @@ class World {
 
         // Reduce CPU->GPU load
         geom.mergeVertices()
-
         if (this.mashup) game.scene.remove(this.mashup)
-
+        Cube.texture.magFilter = THREE.NearestFilter
         this.mashup = new THREE.Mesh(
             new THREE.BufferGeometry().fromGeometry(geom),
-            new THREE.MeshLambertMaterial({ color: 0xffffff, wireframe: game.options.wireframe, vertexColors: THREE.FaceColors }))
-
+            <any>[
+                new THREE.MeshLambertMaterial({ color: 0xffffff, wireframe: game.options.wireframe, vertexColors: THREE.FaceColors, map: Cube.texture }),
+                new THREE.MeshLambertMaterial({ color: 0xffffff, wireframe: game.options.wireframe, vertexColors: THREE.FaceColors, }),
+            ])
+        //this.mashup = <any>THREE.SceneUtils.createMultiMaterialObject(geom, [
+        //    new THREE.MeshLambertMaterial({ color: 0xffffff, wireframe: game.options.wireframe, vertexColors: THREE.FaceColors, map: Cube.texture }),
+        //    new THREE.MeshLambertMaterial({ color: 0x888888, wireframe: true }),
+        //])
+        
         game.scene.add(this.mashup)
 
         console.timeEnd("mergeCubesTotal")
@@ -532,8 +538,11 @@ class Cube {
         left: Cube, right: Cube,
     }
 
+    static texture: THREE.Texture = null
+
     constructor(position: Vector3) {
         this.position = position
+        if (Cube.texture == null) Cube.texture = new THREE.TextureLoader().load("cube.png")
         if (this.position.y < game.world.lowestPoint) game.world.lowestPoint = this.position.y
     }
 
@@ -585,31 +594,136 @@ class Cube {
         let c3 = c1.clone().multiplyScalar(0.9)
 
         // Faces
+
+        let material = Math.floor(Math.random() *2) 
+
+        geom.faceVertexUvs[0] = [];
         if (this.neighbours.bottom == null) {
-            geom.faces.push(new THREE.Face3(vbfl, vbbr, vbbl, new THREE.Vector3(0, -1, 0), c0))
-            geom.faces.push(new THREE.Face3(vbbr, vbfl, vbfr, new THREE.Vector3(0, -1, 0), c0))
+            geom.faces.push(new THREE.Face3(vbfl, vbbr, vbbl, new THREE.Vector3(0, -1, 0), c0, material))
+            geom.faces.push(new THREE.Face3(vbbr, vbfl, vbfr, new THREE.Vector3(0, -1, 0), c0, material))
+
+            let offsetx = 1 / 4
+            let offsety = 2 / 4
+            let d = 1 / 4
+            geom.faceVertexUvs[0].push([
+                new THREE.Vector2(1, 3 / 4),
+                new THREE.Vector2(3 / 4, 2 / 4),
+                new THREE.Vector2(1, 2 / 4),
+            ])
+            geom.faceVertexUvs[0].push([
+                new THREE.Vector2(3 / 4, 2 / 4),
+                new THREE.Vector2(1, 3 / 4),
+                new THREE.Vector2(3 / 4, 3 / 4)
+            ])
         }
         if (this.neighbours.top == null) {
-            geom.faces.push(new THREE.Face3(vtbl, vtbr, vtfl, new THREE.Vector3(0, +1, 0), c1))
-            geom.faces.push(new THREE.Face3(vtfr, vtfl, vtbr, new THREE.Vector3(0, +1, 0), c1))
+            geom.faces.push(new THREE.Face3(vtbl, vtbr, vtfl, new THREE.Vector3(0, +1, 0), c1, material))
+            geom.faces.push(new THREE.Face3(vtfr, vtfl, vtbr, new THREE.Vector3(0, +1, 0), c1, material))
+
+            let offsetx = 1 / 4
+            let offsety = 2 / 4
+            let d = 1 / 4
+            geom.faceVertexUvs[0].push([
+                new THREE.Vector2(offsetx + d * 0, offsety + d * 0),
+                new THREE.Vector2(offsetx + d * 1, offsety + d * 0),
+                new THREE.Vector2(offsetx + d * 0, offsety + d * 1),
+            ])
+            geom.faceVertexUvs[0].push([
+                new THREE.Vector2(offsetx + d * 1, offsety + d * 1),
+                new THREE.Vector2(offsetx + d * 0, offsety + d * 1),
+                new THREE.Vector2(offsetx + d * 1, offsety + d * 0)
+            ])
         }
         if (this.neighbours.left == null) {
-            geom.faces.push(new THREE.Face3(vbbl, vtbl, vbfl, new THREE.Vector3(0, 0, -1), c2))
-            geom.faces.push(new THREE.Face3(vtfl, vbfl, vtbl, new THREE.Vector3(0, 0, -1), c2))
+            geom.faces.push(new THREE.Face3(vbbl, vtbl, vbfl, new THREE.Vector3(0, 0, -1), c2, material))
+            geom.faces.push(new THREE.Face3(vtfl, vbfl, vtbl, new THREE.Vector3(0, 0, -1), c2, material))
+
+            let offsetx = 1 / 4
+            let offsety = 2 / 4
+            let d = 1 / 4
+            geom.faceVertexUvs[0].push([
+                new THREE.Vector2(0, 2 / 4),
+                new THREE.Vector2(1 / 4, 2 / 4),
+                new THREE.Vector2(0, 3 / 4),
+            ])
+            geom.faceVertexUvs[0].push([
+                new THREE.Vector2(1 / 4, 3 / 4),
+                new THREE.Vector2(0, 3 / 4),
+                new THREE.Vector2(1 / 4, 2 / 4)
+            ])
         }
         if (this.neighbours.right == null) {
-            geom.faces.push(new THREE.Face3(vbfr, vtbr, vbbr, new THREE.Vector3(0, 0, +1), c2))
-            geom.faces.push(new THREE.Face3(vtbr, vbfr, vtfr, new THREE.Vector3(0, 0, +1), c2))
+            geom.faces.push(new THREE.Face3(vbfr, vtbr, vbbr, new THREE.Vector3(0, 0, +1), c2, material))
+            geom.faces.push(new THREE.Face3(vtbr, vbfr, vtfr, new THREE.Vector3(0, 0, +1), c2, material))
+
+            let offsetx = 2 / 4
+            let offsety = 2 / 4
+            let d = 1 / 4
+            geom.faceVertexUvs[0].push([
+                new THREE.Vector2(3 / 4, 3 / 4),
+                new THREE.Vector2(2 / 4, 2 / 4),
+                new THREE.Vector2(3 / 4, 2 / 4),
+            ])
+            geom.faceVertexUvs[0].push([
+                new THREE.Vector2(2 / 4, 2 / 4),
+                new THREE.Vector2(3 / 4, 3 / 4),
+                new THREE.Vector2(2 / 4, 3 / 4)
+            ])
         }
         if (this.neighbours.back == null) {
-            geom.faces.push(new THREE.Face3(vbbl, vbbr, vtbl, new THREE.Vector3(-1, 0, 0), c3))
-            geom.faces.push(new THREE.Face3(vtbr, vtbl, vbbr, new THREE.Vector3(-1, 0, 0), c3))
+            geom.faces.push(new THREE.Face3(vbbl, vbbr, vtbl, new THREE.Vector3(-1, 0, 0), c3, material))
+            geom.faces.push(new THREE.Face3(vtbr, vtbl, vbbr, new THREE.Vector3(-1, 0, 0), c3, material))
+
+            let offsetx = 1 / 4
+            let offsety = 1 / 4
+            let d = 1 / 4
+            geom.faceVertexUvs[0].push([
+                new THREE.Vector2(offsetx + d * 0, offsety + d * 0),
+                new THREE.Vector2(offsetx + d * 1, offsety + d * 0),
+                new THREE.Vector2(offsetx + d * 0, offsety + d * 1),
+            ])
+            geom.faceVertexUvs[0].push([
+                new THREE.Vector2(offsetx + d * 1, offsety + d * 1),
+                new THREE.Vector2(offsetx + d * 0, offsety + d * 1),
+                new THREE.Vector2(offsetx + d * 1, offsety + d * 0)
+            ])
         }
         if (this.neighbours.front == null) {
-            geom.faces.push(new THREE.Face3(vtfl, vbfr, vbfl, new THREE.Vector3(+1, 0, 0), c3))
-            geom.faces.push(new THREE.Face3(vbfr, vtfl, vtfr, new THREE.Vector3(+1, 0, 0), c3))
-        }
+            geom.faces.push(new THREE.Face3(vtfl, vbfr, vbfl, new THREE.Vector3(+1, 0, 0), c3, material))
+            geom.faces.push(new THREE.Face3(vbfr, vtfl, vtfr, new THREE.Vector3(+1, 0, 0), c3, material))
 
+            let offsetx = 1 / 4
+            let offsety = 3 / 4
+            let d = 1 / 4
+            let mirror = true
+            let a = mirror ? 0 : 1
+            let b = mirror ? 1 : 0
+            geom.faceVertexUvs[0].push([
+                new THREE.Vector2(offsetx + d * a, offsety + d * a),
+                new THREE.Vector2(offsetx + d * b, offsety + d * b),
+                new THREE.Vector2(offsetx + d * a, offsety + d * b),
+            ])
+            geom.faceVertexUvs[0].push([
+                new THREE.Vector2(offsetx + d * b, offsety + d * b),
+                new THREE.Vector2(offsetx + d * a, offsety + d * a),
+                new THREE.Vector2(offsetx + d * b, offsety + d * a)
+            ])
+        }
+        
+        /*top 1 und 2
+                if (i % 2 == 0) {
+                    geom.faceVertexUvs[0].push([
+                        new THREE.Vector2(0, 1 / 4),
+                        new THREE.Vector2(1, 1 / 4),
+                        new THREE.Vector2(0, 1)
+                    ])
+                } else {
+                    geom.faceVertexUvs[0].push([
+                        new THREE.Vector2(1, 1),
+                        new THREE.Vector2(0, 1),
+                        new THREE.Vector2(1, 1 / 4)
+                    ])
+                }*/
         this.mesh = new THREE.Mesh(
             geom,
             new THREE.MeshLambertMaterial({ color: /*0xffffff || */this.color.getHex(), wireframe: false }))

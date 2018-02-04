@@ -7,6 +7,8 @@
     "scrollbar only on chat and auto scroll down on new message"
   ],
   "work in progress": [
+    "cubes can now have a texture",
+    "fast now toggles when clicking shift",
     "bug fix: velocity now set to 0 when teleporting",
     "keyboard issue fix: keypress or keyrelease will not be registered if the window is not in focus, there fore the are now set to not pressed when window loses focus"
   ],

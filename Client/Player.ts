@@ -8,7 +8,7 @@ class Player {
 
     fast = false
 
-    constructor(position: Vector3) {
+    constructor(position: Vector3, readonly controled: boolean) {
 
         this.position = position
 
@@ -19,6 +19,13 @@ class Player {
         game.scene.add(this.mesh)
 
         this.spawn()
+
+        if (controled) {
+            let key = game.keyboard.key("ShiftLeft")
+            key.signals.down.register(() => {
+                this.fast = !this.fast
+            })
+        }
     }
 
     updateMeshPosition() {
@@ -79,26 +86,20 @@ class Player {
     velocityY = 0
     prevPosition: Vector3 = { x: 0, y: 0, z: 0 }
     step(deltaTime: number) {
-        if (this == game.world.player) {
-            console.time("playerStep")
-
+        if (this.controled) {
             let facingDirection = game.camera.rotation.y
             let walkSpeed = 0
             let walkSideSpeed = 0
-            this.fast = false
 
             // Keyboard Input
-            if (game.keyboard.keysDown["w"] > 0 || game.keyboard.keysDown["s"] > 0) {
-                walkSpeed = 6 / 3.6 * (game.keyboard.keysDown["w"] < game.keyboard.keysDown["s"] ? -1 : 1)
+            if (game.keyboard.key("KeyW").pressed > 0 || game.keyboard.key("KeyS").pressed > 0) {
+                walkSpeed = 6 / 3.6 * (game.keyboard.key("KeyW").pressed < game.keyboard.key("KeyS").pressed ? -1 : 1)
             }
-            if (game.keyboard.keysDown["a"] > 0 || game.keyboard.keysDown["d"] > 0) {
-                walkSideSpeed = 6 / 3.6 * (game.keyboard.keysDown["d"] < game.keyboard.keysDown["a"] ? -1 : 1)
+            if (game.keyboard.key("KeyA").pressed > 0 || game.keyboard.key("KeyD").pressed > 0) {
+                walkSideSpeed = 6 / 3.6 * (game.keyboard.key("KeyD").pressed < game.keyboard.key("KeyA").pressed ? -1 : 1)
             }
-            if (game.keyboard.keysDown[" "] > 0) {
+            if (game.keyboard.key("Space").pressed > 0) {
                 if (this.velocityY == 0) this.velocityY = 9.81 / 2
-            }
-            if (game.keyboard.keysDown["Shift"] > 0) {
-                this.fast = true
             }
 
             // Gravity
