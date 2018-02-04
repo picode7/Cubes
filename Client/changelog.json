@@ -3,7 +3,8 @@
   "known issues": [
     "data might be missed during connection lost and reconnect",
     "player collision is, meh.",
-    "scrollbar only on chat and auto scroll down on new message"
+    "scrollbar only on chat and auto scroll down on new message",
+    "since jump is depending on 0 vertical velocity, it is sometimes possible to jump again on the highest point"
   ],
   "work in progress": [
   ],
