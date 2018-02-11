@@ -1,34 +1,31 @@
-﻿
-namespace Input {
+﻿namespace Input {
 
-    type KeyboardEventCode = string
-
-    //interface KeyboardEvent {
-    //    code: KeyboardEventCode
-    //}
-
+    interface KeyX {
+        pressed: number
+        signals: { down: Signal<KeyX>, up: Signal<KeyX> } 
+    }
     type KeysArray = {
-        [index: string]: { pressed: number, signals: { down: Signal, up: Signal } }
+        [index: string]: KeyX
     }
 
-    class Signal {
-        callbacks: (() => any)[] = []
-        register(c: () => any) {
+    class Signal<T> {
+        callbacks: ((data: T) => any)[] = []
+        register(c: (data: T) => any) {
             this.callbacks.push(c)
         }
-        send() {
+        send(data: T) {
             for (let i = 0, max = this.callbacks.length; i < max; ++i) {
-                this.callbacks[i]()
+                this.callbacks[i](data)
             }
         }
     }
 
     export class Keyboard {
 
-        _keys: KeysArray = {}
+        private _keys: KeysArray = {}
         keyOrder = 0
 
-        key(key: KeyboardEventCode) {
+        key(key: KeyboardEventKeyValue) {
             if (this._keys[key] === undefined) {
                 this._keys[key] = {
                     pressed: 0,
@@ -48,26 +45,17 @@ namespace Input {
         }
 
         private onkeydown(e: KeyboardEvent) {
-            if (document.getElementById("chatInput") !== document.activeElement && e.key !== "Enter") {
+
+            if (game.gui.layer == GUI_LAYER.ingame &&
+                document.getElementById("chatInput") !== document.activeElement && e.key.toLowerCase() !== "enter") {
                 
-                let key = this.key(e.key)
+                let key = this.key(e.key.toLowerCase())
                 let t = key.pressed
                 key.pressed = ++this.keyOrder // overflow after 285M years at 1 hit per seconds
-                if(t == 0) key.signals.down.send()
+                if(t == 0) key.signals.down.send(key)
                 
                 e.preventDefault()
-
-                if (e.key == "t") game.traceOn = !game.traceOn
-                if (e.key == "c") game.copyColor()
-                if (e.key == "p") {
-                    let pos = game.getRayCubePos(true)
-                    if (pos != null) {
-                        pos.x += 0.5
-                        pos.y += 1 // go on top
-                        pos.z += 0.5
-                        game.world.player.teleport(pos)
-                    }
-                }
+                if (e.key.toLowerCase() == "t") game.traceOn = !game.traceOn
             }
             return false
         }
@@ -79,7 +67,7 @@ namespace Input {
                 let key = this.key(_key)
                 if (key.pressed > 0) {
                     key.pressed = 0
-                    key.signals.up.send()
+                    key.signals.up.send(key)
                 }
             }
         }
@@ -87,11 +75,11 @@ namespace Input {
         private onkeyup(e: KeyboardEvent) {
             // Key might have been down without this window beeing in focus, 
             // so ignore if it goes without going down while in focus
-            let key = this.key(e.key)
+            let key = this.key(e.key.toLowerCase())
             let t = key.pressed
             if (t > 0) {
                 key.pressed = 0
-                key.signals.up.send()
+                key.signals.up.send(key)
             }
         }
     }
@@ -99,9 +87,10 @@ namespace Input {
     export class PointerLock {
 
         locked: boolean = false
+        onchange: Signal<boolean> = new Signal()
 
         constructor(public el: HTMLElement) {
-            this.el.addEventListener("mousedown", this.el.requestPointerLock)
+            //this.el.addEventListener("mousedown", this.el.requestPointerLock)
             document.addEventListener('pointerlockchange', () => this.pointerlockchange(), false)
             this.callback = (e) => this.mousemove(e)
         }
@@ -109,37 +98,46 @@ namespace Input {
         static get isSupported(): boolean {
             return 'pointerLockElement' in document
         }
-
+        
         callback: (e: MouseEvent) => any
         pointerlockchange() {
             if (document.pointerLockElement === this.el && this.locked == false) {
                 this.locked = true
                 document.addEventListener("mousemove", this.callback, false)
+                this.onchange.send(this.locked)
             } else if (document.pointerLockElement !== this.el && this.locked == true) {
                 this.locked = false
                 document.removeEventListener("mousemove", this.callback, false)
+                this.onchange.send(this.locked)
             }
         }
 
         mousemove(e: MouseEvent) {
+            if(game.gui.layer != GUI_LAYER.ingame) return
+
             // https://bugs.chromium.org/p/chromium/issues/detail?id=781182
             if (Math.abs(e.movementX) > 200 || Math.abs(e.movementY) > 200) return
 
             this.moveCamera(e.movementX, e.movementY)
         }
-
+        
         lat = 0
         lon = 0
+        updateLonLat() {
+            this.lon = 360 - (THREE.Math.radToDeg(game.camera.rotation.y) + 180 + 270) % 360
+            this.lat = THREE.Math.radToDeg(Math.asin(game.camera.rotation.x / Math.PI * 2))
+            this.moveCamera(0, 0)
+        }
         moveCamera(deltaX, deltaY) {
 
             let speed = .2
-            this.lon += deltaX * speed
-            this.lat -= deltaY * speed
+            this.lon += deltaX * speed // 0 to 360 roundview
+            this.lat -= deltaY * speed // -90 to 90
 
             this.lat = Math.max(-89.99999, Math.min(89.99999, this.lat))
 
-            let phi = THREE.Math.degToRad(90 - this.lat)
             let theta = THREE.Math.degToRad(this.lon)
+            let phi = THREE.Math.degToRad(90 - this.lat)
 
             game.camera.lookAt(new THREE.Vector3(
                 game.camera.position.x + Math.sin(phi) * Math.cos(theta),
@@ -148,6 +146,7 @@ namespace Input {
             ))
         }
     }
+    document.createElementNS("http://www.w3.org/2000/svg", "a")
 
     // MouseEvent.button
     export const enum Button {
@@ -155,6 +154,30 @@ namespace Input {
         MIDDLE = 1,
         RIGHT = 2,
     }
+
+    // https://developer.mozilla.org/de/docs/Web/API/KeyboardEvent/key/Key_Values 2018-02-05
+    type KeyboardEventKeyValue = string | "Unidentified" |
+        "Unidentified" | "Alt" | "AltGraph" | "CapsLock" | "Control" | "Fn" | "FnLock" | "Hyper" | "Meta" | "NumLock" | "ScrollLock" | "Shift" | "Super" | "Symbol" | "SymbolLock" |
+        "Enter" | "Tab" | " " |
+        "ArrowDown" | "ArrowLeft" | "ArrowRight" | "ArrowUp" | "End" | "Home" | "PageDown" | "PageUp" |
+        "Backspace" | "Clear" | "Copy" | "CrSel" | "Cut" | "Delete" | "EraseEof" | "ExSel" | "Insert" | "Paste" | "Redo" | "Undo" |
+        "Accept" | "Again" | "Attn" | "Cancel" | "ContextMenu" | "ContextMenu" | "Escape" | "Execute" | "Find" | "Finish" | "Help" | "Pause" | "Play" | "Props" | "Select" | "ZoomIn" | "ZoomOut" |
+        "BrightnessDown" | "BrightnessUp" | "Eject" | "LogOff" | "Power" | "PowerOff" | "PrintScreen" | "Hibernate" | "Standby" | "WakeUp" |
+        "AllCandidates" | "Alphanumeric" | "CodeInput" | "Compose" | "Convert" | "Dead" | "FinalMode" | "GroupFirst" | "GroupLast" | "GroupNext" | "GroupPrevious" | "ModeChange" | "NextCandidate" | "NonConvert" | "PreviousCandidate" | "Process" | "SingleCandidate" |
+        "HangulMode" | "HanjaMode" | "JunjaMode" |
+        "Eisu" | "Hankaku" | "Hiragana" | "HiraganaKatakana" | "KanaMode" | "KanjiMode" | "Katakana" | "Romaji" | "Zenkaku" | "ZenkakuHanaku" |
+        "F1" | "F2" | "F3" | "F4" | "F5" | "F6" | "F7" | "F8" | "F9" | "F10" | "F11" | "F12" | "F13" | "F14" | "F15" | "F16" | "F17" | "F18" | "F19" | "F20" |
+        "AppSwitch" | "Call" | "Camera" | "CameraFocus" | "EndCall" | "GoBack" | "GoHome" | "HeadsetHook" | "LastNumberRedial" | "Notification" | "MannerMode" | "VoiceDial" |
+        "ChannelDown" | "ChannelUp" | "MediaFastForward" | "MediaPause" | "MediaPlay" | "MediaPlayPause" | "MediaRecord" | "MediaRewind" | "MediaStop" | "MediaTrackNext" | "MediaTrackPrevious" |
+        "AudioBalanceLeft" | "AudioBalanceRight" | "AudioBassDown" | "AudioBassBoostDown" | "AudioBassBoostToggle" | "AudioBassBoostUp" | "AudioBassUp" | "AudioFaderFront" | "AudioFaderRear" | "AudioSurroundModeNext" | "AudioTrebleDown" | "AudioTrebleUp" | "AudioVolumeDown" | "AudioVolumeMute" | "AudioVolumeUp" | "MicrophoneToggle" | "MicrophoneVolumeDown" | "MicrophoneVolumeMute" | "MicrophoneVolumeUp" |
+        "TV" | "TV3DMode" | "TVAntennaCable" | "TVAudioDescription" | "TVAudioDescriptionMixDown" | "TVAudioDescriptionMixUp" | "TVContentsMenu" | "TVDataService" | "TVInput" | "TVInputComponent1" | "TVInputComponent2" | "TVInputComposite1" | "TVInputComposite2" | "TVInputHDMI1" | "TVInputHDMI2" | "TVInputHDMI3" | "TVInputHDMI4" | "TVInputVGA1" | "TVMediaContext" | "TVNetwork" | "TVNumberEntry" | "TVPower" | "TVRadioService" | "TVSatellite" | "TVSatelliteBS" | "TVSatelliteCS" | "TVSatelliteToggle" | "TVTerrestrialAnalog" | "TVTerrestrialDigital" | "TVTimer" |
+        "AVRInput" | "AVRPower" | "ColorF0Red" | "ColorF1Green" | "ColorF2Yellow" | "ColorF3Blue" | "ColorF4Grey" | "ColorF5Brown" | "ClosedCaptionToggle" | "Dimmer" | "DisplaySwap" | "DVR" | "Exit" | "FavoriteClear0" | "FavoriteClear1" | "FavoriteClear2" | "FavoriteClear3" | "FavoriteRecall0" | "FavoriteRecall1" | "FavoriteRecall2" | "FavoriteRecall3" | "FavoriteStore0" | "FavoriteStore1" | "FavoriteStore2" | "FavoriteStore3" | "Guide" | "GuideNextDay" | "GuidePreviousDay" | "Info" | "InstantReplay" | "Link" | "ListProgram" | "LiveContent" | "Lock" | "MediaApps" | "MediaAudioTrack" | "MediaLast" | "MediaSkipBackward" | "MediaSkipForward" | "MediaStepBackward" | "MediaStepForward" | "MediaTopMenu" | "NavigateIn" | "NavigateNext" | "NavigateOut" | "NavigatePrevious" | "NextFavoriteChannel" | "NextUserProfile" | "OnDemand" | "Pairing" | "PinPDown" | "PinPMove" | "PinPToggle" | "PinPUp" | "PlaySpeedDown" | "PlaySpeedReset" | "PlaySpeedUp" | "RandomToggle" | "RcLowBattery" | "RecordSpeedNext" | "RfBypass" | "ScanChannelsToggle" | "ScreenModeNext" | "Settings" | "SplitScreenToggle" | "STBInput" | "STBPower" | "Subtitle" | "Teletext" | "VideoModeNext" | "Wink" | "ZoomToggle" |
+        "SpeechCorrectionList" | "SpeechInputToggle" |
+        "Close" | "New" | "Open" | "Print" | "Save" | "SpellCheck" | "MailForward" | "MailReply" | "MailSend" |
+        "LaunchCalculator" | "LaunchCalendar" | "LaunchContacts" | "LaunchMail" | "LaunchMediaPlayer" | "LaunchMusicPlayer" | "LaunchMyComputer" | "LaunchPhone" | "LaunchScreenSaver" | "LaunchSpreadsheet" | "LaunchWebBrowser" | "LaunchWebCam" | "LaunchWordProcessor" | "LaunchApplication1" | "LaunchApplication2" | "LaunchApplication3" | "LaunchApplication4" | "LaunchApplication5" | "LaunchApplication6" | "LaunchApplication7" | "LaunchApplication8" | "LaunchApplication9" | "LaunchApplication10" | "LaunchApplication11" | "LaunchApplication12" | "LaunchApplication13" | "LaunchApplication14" | "LaunchApplication15" | "LaunchApplication16" |
+        "BrowserBack" | "BrowserFavorites" | "BrowserForward" | "BrowserHome" | "BrowserRefresh" | "BrowserSearch" | "BrowserStop" |
+        "Decimal" | "Key11" | "Key12" | "Multiply" | "Add" | "Clear" | "Divide" | "Subtract" | "Separator" | "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" |
+        "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j" | "k" | "l" | "m" | "n" | "o" | "p" | "q" | "r" | "s" | "t" | "u" | "v" | "w" | "x" | "y" | "z"
 
     // KeyboardEvent.keyCode // deprecated
     export const enum Key {

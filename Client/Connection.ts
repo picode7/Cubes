@@ -17,9 +17,12 @@ class Connection {
         this.ws.onopen = () => {
             game.chat.onmessage("connected to server")
 
+
             let message1: Message = {
                 type: MessageType.handshake
             }
+            let playerId = localStorage.getItem("playerId")
+            if (playerId != null) message1.player = { id: playerId }
             this.ws.send(JSON.stringify(message1))
 
             if (this.wasConnected == false) {
@@ -38,7 +41,21 @@ class Connection {
             switch (message.type) {
 
                 case MessageType.handshake:
-                    game.world.player.id = message.player.id
+                    game.world.player.id = message.player.id;
+                    (<HTMLInputElement>document.getElementById("playerId")).value = game.world.player.id
+                    localStorage.setItem("playerId", game.world.player.id)
+                    if (message.player.position) {
+                        game.world.player.position = message.player.position
+                    }
+                    if (message.player.orientation) {
+                        game.world.player.orientation = message.player.orientation
+                    }
+                    game.world.player.updatePosition()
+                    game.camera.rotation.order = 'YXZ';
+                    game.camera.rotation.x = game.world.player.orientation.x
+                    game.camera.rotation.y = game.world.player.orientation.y
+                    game.camera.rotation.z = game.world.player.orientation.z
+                    game.pointer.updateLonLat()
                     this.handshake = true
                     break
 
@@ -56,7 +73,8 @@ class Connection {
                     for (let cube of newCubes) {
                         cube.init(true)
                     }
-                    game.world.createMashup()
+                    game.world.superCluster.addCubes(newCubes)
+                    //game.world.createMashup()
                     break
 
                 case MessageType.removeCubes:
@@ -103,7 +121,7 @@ class Connection {
                             game.world.players.push(found)
                         } else {
                             found.position = message.player.position
-                            found.updateMeshPosition()
+                            found.updatePosition()
                         }
                     }
 

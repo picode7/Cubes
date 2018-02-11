@@ -2,15 +2,25 @@
 class Player {
 
     position: Vector3
+    prevPosition: Vector3
+
+    orientation: Vector3
+    prevOrientation: Vector3
     id: string
 
     mesh: THREE.Mesh
 
     fast = false
 
+    walkSpeed = 0
+    walkSideSpeed = 0
+
     constructor(position: Vector3, readonly controled: boolean) {
 
         this.position = position
+        this.prevPosition = { x: 0, y: 0, z: 0 }
+        this.orientation = { x: 0, y: 0, z: 0 }
+        this.prevOrientation = { x: 0, y: 0, z: 0 }
 
         let color = new THREE.Color(0xff8800)
         let geometry = new THREE.CylinderGeometry(1 / 2, 1 / 2, 2, 30, 1)
@@ -21,23 +31,54 @@ class Player {
         this.spawn()
 
         if (controled) {
-            let key = game.keyboard.key("Shift")
-            key.signals.down.register(() => {
+
+            game.keyboard.key("shift").signals.down.register(() => {
+                if (game.gui.layer != GUI_LAYER.ingame) return
                 this.fast = !this.fast
             })
+
+            let fb = () => {
+                if (game.gui.layer != GUI_LAYER.ingame) return
+                if (game.keyboard.key("w").pressed > 0 || game.keyboard.key("s").pressed > 0) {
+                    this.walkSpeed = 6 / 3.6 * (game.keyboard.key("w").pressed < game.keyboard.key("s").pressed ? -1 : 1)
+                } else {
+                    this.walkSpeed = 0
+                }
+            }
+            let lr = () => {
+                if (game.gui.layer != GUI_LAYER.ingame) return
+                if (game.keyboard.key("a").pressed > 0 || game.keyboard.key("d").pressed > 0) {
+                    this.walkSideSpeed = 6 / 3.6 * (game.keyboard.key("d").pressed < game.keyboard.key("a").pressed ? -1 : 1)
+                } else {
+                    this.walkSideSpeed = 0
+                }
+            }
+
+            game.keyboard.key("w").signals.down.register(fb)
+            game.keyboard.key("w").signals.up.register(fb)
+            game.keyboard.key("s").signals.down.register(fb)
+            game.keyboard.key("s").signals.up.register(fb)
+
+            game.keyboard.key("d").signals.down.register(lr)
+            game.keyboard.key("d").signals.up.register(lr)
+            game.keyboard.key("a").signals.down.register(lr)
+            game.keyboard.key("a").signals.up.register(lr)
         }
     }
 
-    updateMeshPosition() {
+    updatePosition() {
         // Update Object Position
         this.mesh.position.x = this.position.x
         this.mesh.position.y = this.position.y + 1
         this.mesh.position.z = this.position.z
+
+        // Update Camera
+        game.camera.position.x = this.mesh.position.x
+        game.camera.position.y = this.mesh.position.y + 0.25
+        game.camera.position.z = this.mesh.position.z
     }
 
     spawn() {
-        //if (this != game.world.player) return
-
         this.position.x = 4
         this.position.y = 15
         this.position.z = 4
@@ -56,7 +97,7 @@ class Player {
 
         this.velocityY = 0
 
-        this.updateMeshPosition()
+        this.updatePosition()
 
         // Update Camera
         game.camera.position.x = this.mesh.position.x
@@ -84,22 +125,17 @@ class Player {
     }
 
     velocityY = 0
-    prevPosition: Vector3 = { x: 0, y: 0, z: 0 }
     step(deltaTime: number) {
-        if (this.controled) {
-            let facingDirection = game.camera.rotation.y
-            let walkSpeed = 0
-            let walkSideSpeed = 0
+        if (this.controled && game.world.cubes.length) {
+            this.orientation.x = game.camera.rotation.x
+            this.orientation.y = game.camera.rotation.y
+            this.orientation.z = game.camera.rotation.z 
+            let facingDirection = this.orientation.y
 
-            // Keyboard Input
-            if (game.keyboard.key("w").pressed > 0 || game.keyboard.key("s").pressed > 0) {
-                walkSpeed = 6 / 3.6 * (game.keyboard.key("w").pressed < game.keyboard.key("s").pressed ? -1 : 1)
-            }
-            if (game.keyboard.key("a").pressed > 0 || game.keyboard.key("d").pressed > 0) {
-                walkSideSpeed = 6 / 3.6 * (game.keyboard.key("KeyD").pressed < game.keyboard.key("a").pressed ? -1 : 1)
-            }
-            if (game.keyboard.key(" ").pressed > 0) {
-                if (this.velocityY == 0) this.velocityY = 9.81 / 2
+            if (game.gui.layer == GUI_LAYER.ingame) {
+                if (game.keyboard.key(" ").pressed > 0) {
+                    if (this.velocityY == 0) this.velocityY = 9.81 / 2
+                }
             }
 
             // Gravity
@@ -112,19 +148,19 @@ class Player {
 
             // Adjust Speeds
             let walkingDirection = facingDirection
-            if (this.fast) walkSpeed *= 2
-            let speed = walkSpeed
+            let speed = this.walkSpeed
+            if (this.fast) speed *= 2
             if (speed == 0) {
-                if (walkSideSpeed != 0) {
+                if (this.walkSideSpeed != 0) {
                     walkingDirection -= Math.PI / 2
-                    speed = walkSideSpeed
+                    speed = this.walkSideSpeed
                 }
             } else if (speed > 0) {
-                if (walkSideSpeed > 0) walkingDirection -= Math.PI / 4
-                if (walkSideSpeed < 0) walkingDirection += Math.PI / 4
+                if (this.walkSideSpeed > 0) walkingDirection -= Math.PI / 4
+                if (this.walkSideSpeed < 0) walkingDirection += Math.PI / 4
             } else if (speed < 0) {
-                if (walkSideSpeed > 0) walkingDirection += Math.PI / 4
-                if (walkSideSpeed < 0) walkingDirection -= Math.PI / 4
+                if (this.walkSideSpeed > 0) walkingDirection += Math.PI / 4
+                if (this.walkSideSpeed < 0) walkingDirection -= Math.PI / 4
             }
             const radians = walkingDirection > 0 ? walkingDirection : (2 * Math.PI) + walkingDirection;
 
@@ -177,25 +213,25 @@ class Player {
                 this.position.z += deltaZ
             }
 
-            this.updateMeshPosition()
+            this.updatePosition()
 
-            // Update Camera
-            game.camera.position.x = this.mesh.position.x
-            game.camera.position.y = this.mesh.position.y + 0.25
-            game.camera.position.z = this.mesh.position.z
             //console.timeEnd("playerStep")
         }
 
         if (this.prevPosition.x != this.position.x
             || this.prevPosition.y != this.position.y
-            || this.prevPosition.z != this.position.z) {
+            || this.prevPosition.z != this.position.z
+            || this.prevOrientation.x != this.orientation.x
+            || this.prevOrientation.y != this.orientation.y
+            || this.prevOrientation.z != this.orientation.z) {
 
             if (this.controled) {
                 game.connection.sendMessage({
                     type: MessageType.playerUpdate,
                     player: {
                         id: this.id,
-                        position: this.position
+                        position: this.position,
+                        orientation: this.orientation,
                     }
                 })
             }
@@ -205,6 +241,10 @@ class Player {
             this.prevPosition.x = this.position.x
             this.prevPosition.y = this.position.y
             this.prevPosition.z = this.position.z
+
+            this.prevOrientation.x = this.orientation.x
+            this.prevOrientation.y = this.orientation.y
+            this.prevOrientation.z = this.orientation.z
         }
     }
 }

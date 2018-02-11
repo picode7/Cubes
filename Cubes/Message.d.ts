@@ -30,7 +30,8 @@ interface Message {
     cubes?: Cube_Data[]
     player?: {
         id: string,
-        position: { x: number, y: number, z: number }
+        position?: { x: number, y: number, z: number },
+        orientation?: { x: number, y: number, z: number },
     }
     text?: string
 }

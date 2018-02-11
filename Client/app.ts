@@ -7,175 +7,11 @@ window.onload = () => {
     new Info()
 }
 
-
-interface Changelog {
-    "known issues": string[]
-    "work in progress": string[]
-    versions: {
-        version: string
-        changes: string[]
-    }[]
-}
-class Info {
-    constructor() {
-        let req = new XMLHttpRequest()
-        req.open("GET", "changelog.json")
-        req.onreadystatechange = () => {
-            if (req.readyState == 4 && req.status == 200) {
-                this.changelog(JSON.parse(req.responseText))
-            }
-        }
-        req.send()
-    }
-
-    private changelog(logs: Changelog) {
-
-        let oldVersion = localStorage.getItem("version")
-
-        let oldKnownIssues = localStorage.getItem("knownIssues")
-        let knownIssues = JSON.stringify(logs["known issues"])
-        
-        let oldWorkInProgress = localStorage.getItem("workInProgress")
-        let workInProgress = JSON.stringify(logs["work in progress"])
-
-        logs.versions.sort((a, b) => { return a.version > b.version ? -1 : 1 })
-
-        if (oldVersion == null || oldVersion < logs.versions[0].version
-            || oldKnownIssues != knownIssues
-            || oldWorkInProgress != workInProgress) {
-            document.getElementById("info").style.display = "block"
-            localStorage.setItem("version", logs.versions[0].version)
-            localStorage.setItem("knownIssues", knownIssues)
-            localStorage.setItem("workInProgress", workInProgress)
-        }
-
-        let elVersionLog = document.getElementById("versionlog")
-        let putContentInto = elVersionLog
-        let elSpoilerContent = document.createElement("div")
-
-        headList(oldKnownIssues != knownIssues ? elVersionLog : elSpoilerContent,
-            "known issues", logs["known issues"])
-
-        headList(oldWorkInProgress != workInProgress ? elVersionLog : elSpoilerContent,
-            "work in progress", logs["work in progress"])
-
-        for (let version of logs.versions) {
-            // put content into spoler if it's not new
-            if (oldVersion >= version.version) { putContentInto = elSpoilerContent }
-            headList(putContentInto, version.version, version.changes)
-        }
-        if (elSpoilerContent.childElementCount) {
-            let spoiler = elementFromHTML(`<div style="cursor:pointer;color:lightblue">Show more</div>`)
-            spoiler.onclick = () => { elSpoilerContent.style.display = "block"; spoiler.style.display = "none"}
-            elVersionLog.appendChild(spoiler)
-
-            elSpoilerContent.style.display = "none"
-            elVersionLog.appendChild(elSpoilerContent)
-        }
-
-        function headList(parent: HTMLElement, title: string, list: string[]) {
-            let elTitle = document.createElement("h3")
-            elTitle.innerText = title
-            parent.appendChild(elTitle)
-            let elList = document.createElement("ul")
-            parent.appendChild(elList)
-            for (let log of list) {
-                let elItem = document.createElement("li")
-                elItem.innerText = log
-                elList.appendChild(elItem)
-            }
-        }
-    }
-}
-
-class Chat {
-    elC= document.getElementById("chat")
-    elCL = document.getElementById("chatLog")
-    elCI = <HTMLInputElement>document.getElementById("chatInput")
-    elCS = <HTMLInputElement>document.getElementById("chatSend")
-
-    constructor() {
-
-        this.elCS.onclick = () => this.send()
-        this.elCI.onblur = () => this.show()
-
-        window.addEventListener("keydown", (e) => {
-            if (e.keyCode == Input.Key.ENTER) {
-                if (this.elCI !== document.activeElement) {
-                    this.show()
-                    this.elCI.focus()
-                } else {
-                    this.send()
-                    this.elCI.blur()
-                }
-            }
-        })
-    }
-
-    hideTimeout: number
-    show() {
-        this.elC.style.display = "block"
-
-        clearTimeout(this.hideTimeout)
-        this.hideTimeout = setTimeout(() => this.hide(), 5000)
-    }
-
-    hide() {
-        if (this.elCI == document.activeElement) return
-
-        this.elC.style.display = "none"
-        this.elCI.blur()
-    }
-
-    send() {
-        let txt = this.elCI.value.trim()
-        this.elCI.value = ""
-
-        if (txt == "") return
-
-        this.onmessage(txt, true)
-    }
-
-    onmessage(text, self = false) {
-
-        this.show()
-
-        // append messages
-        this.elCL.appendChild(elementFromHTML(
-            `<div${self?` style="color:#ccc"`:""}>[${new Date().toLocaleTimeString()}] ${text}</div>`
-        ))
-
-        // scroll down
-        this.elCL.scrollTop = this.elCL.scrollHeight
-
-        if (self) {
-            game.connection.sendMessage({
-                type: MessageType.chat,
-                text: text
-            })
-        }
-    }
-}
-
-class GUI {
-
-    selectBlocks = [
-        CUBE_TYPE.stone,
-        CUBE_TYPE.mono,
-        CUBE_TYPE.glas,
-    ]
-    selectedBlockIndex = 0
-
-    selectedColor: THREE.Color = null
-}
-
 class Game {
 
     scene: THREE.Scene
     camera: THREE.PerspectiveCamera
     renderer: THREE.WebGLRenderer
-
-    elDebugInfo: HTMLElement
 
     world: World
     connection: Connection
@@ -187,7 +23,8 @@ class Game {
     raycaster = new THREE.Raycaster()
     rollOverMesh: THREE.Mesh
 
-    gui = new GUI()
+    gui: GUI
+    fps = new FPS()
 
     options = {
         wireframe: false,
@@ -198,18 +35,16 @@ class Game {
     }
 
     constructor() {
+        game = this
 
         let lsStringOptions = localStorage.getItem("options")
         if (lsStringOptions !== null) {
             let lsOptions = JSON.parse(lsStringOptions)
             this.options = lsOptions
-            this.updateOptionsGUI()
         }
 
         if (Input.PointerLock.isSupported == false) alert("Browser not supported!")
-
-        game = this
-
+        
         // Scene
         this.scene = new THREE.Scene()
         this.scene.background = new THREE.Color(0)
@@ -244,9 +79,6 @@ class Game {
         window.addEventListener("mouseup", (event) => {
             this.mouseup(event)
         })
-        window.addEventListener("wheel", (event) => {
-            this.mousewheel(event)
-        })
         window.onbeforeunload = function () { // Prevent Ctrl+W ... Chrome!
             return "Really want to quit the game?"
         }
@@ -255,11 +87,7 @@ class Game {
         this.connection = new Connection()
 
         // GUI
-        document.body.appendChild(elementFromHTML(
-            `<div style="position:absolute; left:50%; top:50%; height:1px; width:1px; background:red;pointer-events:none"></div>`))
-        this.elDebugInfo = document.body.appendChild(elementFromHTML(
-            `<div style="position:absolute; left:0; top:0; width:200px; color: white; font-size:10pt;font-family: Consolas;pointer-events:none"></div>`))
-        this.elDebugInfo.style.display = this.options.debugInfo ? "block" : "none"
+        this.gui = new GUI()
 
         let rollOverGeo = new THREE.BoxGeometry(1, 1, 1);
         let rollOverMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true });
@@ -268,44 +96,6 @@ class Game {
         // Start rendering
         this.stepPreviousTime = Date.now()
         this.animate()
-        //setInterval(() => this.step(), 1000 / 30)
-    }
-
-    updateOptionsGUI() {
-        ; (<HTMLInputElement>document.getElementById("settings_aa")).checked = this.options.antialias
-            ; (<HTMLInputElement>document.getElementById("settings_debug")).checked = this.options.debugInfo
-            ; (<HTMLInputElement>document.getElementById("settings_fog")).checked = this.options.fog
-            ; (<HTMLInputElement>document.getElementById("settings_wireframe")).checked = this.options.wireframe;
-        (<HTMLSelectElement>document.getElementById("settings_renderScale")).selectedIndex = [25,50,75,100,150,200].indexOf(this.options.renderScale)
-    }
-
-    updateOptions(reload = false) {
-
-        this.options.antialias = (<HTMLInputElement>document.getElementById("settings_aa")).checked
-        this.options.debugInfo = (<HTMLInputElement>document.getElementById("settings_debug")).checked
-        this.options.fog = (<HTMLInputElement>document.getElementById("settings_fog")).checked
-        this.options.wireframe = (<HTMLInputElement>document.getElementById("settings_wireframe")).checked
-        this.options.renderScale = [25, 50, 75, 100, 150, 200][(<HTMLSelectElement>document.getElementById("settings_renderScale")).selectedIndex]
-        
-        localStorage.setItem("options", JSON.stringify(this.options))
-
-        // Debug Info
-        this.elDebugInfo.style.display = this.options.debugInfo ? "block" : "none"
-
-        // Wireframe
-        game.world.createMashup()
-
-        // Fog
-        if (this.options.fog) {
-            this.scene.fog = new THREE.Fog(0, 0, 25)
-        } else {
-            this.scene.fog = null
-        }
-
-        // Render Scale
-        this.renderer.setPixelRatio(this.options.renderScale / 100 * window.devicePixelRatio)
-
-        if (reload) location.reload()
     }
 
     onResize() {
@@ -318,93 +108,114 @@ class Game {
         this.camera.aspect = window.innerWidth / window.innerHeight
         this.camera.updateProjectionMatrix()
     }
-    mousewheel(e: WheelEvent) {
-        if (e.deltaY > 0) { // up
-            this.gui.selectedBlockIndex = this.gui.selectedBlockIndex - 1
-            if (this.gui.selectedBlockIndex < 0) this.gui.selectedBlockIndex = this.gui.selectBlocks.length + this.gui.selectedBlockIndex
-        } else if (e.deltaY < 0) { // down
-            this.gui.selectedBlockIndex = (this.gui.selectedBlockIndex + 1) % this.gui.selectBlocks.length
-        }
-    }
     mouseup(e: MouseEvent) {
-        if (e.button == 2) this.mouseRightDown = false
     }
+
     copyColor() {
-        
         let pos = this.getRayCubePos(true)
 
         if (pos == null) {
-            this.gui.selectedColor = null
+            this.gui.setColor(null)
         } else {
             for (let i = 0, max = this.world.cubes.length; i < max; ++i) {
                 if (this.world.cubes[i].position.x == pos.x &&
                     this.world.cubes[i].position.y == pos.y &&
                     this.world.cubes[i].position.z == pos.z) {
 
-                    this.gui.selectedColor = this.world.cubes[i].color.clone()
+                    this.gui.setColor(this.world.cubes[i].color.clone())
 
                     break
                 }
             }
         }
     }
-    mouseRightDown = false
+
     traceOn = false
     onclick(e: MouseEvent) {
 
-        // Put block
-        if (this.pointer.locked) {
-            if (e.button == 0) {
-                let altKey = this.keyboard.key("Alt").pressed > 0
-                let pos = this.getRayCubePos(altKey)
+        if (this.gui.layer != GUI_LAYER.ingame) return
+        if (e.button != 0) return
 
-                if (pos != null) {
-                    if (altKey == false) {
-                        // Add Cube
-                        let cube = new Cube({
-                            position: { x: pos.x, y: pos.y, z: pos.z },
-                            type: this.gui.selectBlocks[this.gui.selectedBlockIndex],
-                            color: this.gui.selectedColor != null ? this.gui.selectedColor : undefined,
-                        })
-                        this.world.cubes.push(cube)
-                        cube.init(true)
+        let action = this.gui.getSelectedAction()
 
+        switch (action) {
+            case "Pick Color": {
+                this.copyColor()
+            } break
+
+            case "Teleport": {
+                let pos = game.getRayCubePos(true)
+                if (pos == null) break
+
+                pos.x += 0.5
+                pos.y += 1 // go on top
+                pos.z += 0.5
+                game.world.player.teleport(pos)
+            } break
+
+            case "Remove Block": {
+                let pos = this.getRayCubePos(true)
+                if (pos == null) break
+
+                for (let i = 0, max = this.world.cubes.length; i < max; ++i) {
+                    if (this.world.cubes[i].position.x == pos.x &&
+                        this.world.cubes[i].position.y == pos.y &&
+                        this.world.cubes[i].position.z == pos.z) {
+                        //this.connection.sendMessage({
+                        //    type: MessageType.removeCubes,
+                        //    cubes: [{ position: this.world.cubes[i].position, type: undefined, color: undefined }]
+                        //})
+                        //this.world.cubes[i].remove()
+                        this.world.cubes.splice(i, 1)
                         this.world.createMashup()
-
-                        this.connection.sendMessage({
-                            type: MessageType.cubesAdd,
-                            cubes: [{ position: cube.position, type: cube.type, color: {r: cube.color.r, g: cube.color.g, b: cube.color.b}}]
-                        })
-                    } else {
-                        // Remove Cube
-                        for (let i = 0, max = this.world.cubes.length; i < max; ++i) {
-                            if (this.world.cubes[i].position.x == pos.x &&
-                                this.world.cubes[i].position.y == pos.y &&
-                                this.world.cubes[i].position.z == pos.z) {
-                                this.connection.sendMessage({
-                                    type: MessageType.removeCubes,
-                                    cubes: [{ position: this.world.cubes[i].position, type: undefined, color: undefined }]
-                                })
-                                this.world.cubes[i].remove()
-                                this.world.cubes.splice(i, 1)
-                                this.world.createMashup()
-                                break
-                            }
-                        }
+                        break
                     }
                 }
-            } else if (e.button == 2) {
-                this.mouseRightDown = true
 
-            }
+                this.world.superCluster.removeCubeAt(pos)
+            } break
 
+            default: { // Block
+                let blockType
+                switch (action) {
+                    case "Stone": blockType = CUBE_TYPE.stone; break
+                    case "Mono": blockType = CUBE_TYPE.mono; break
+                    case "Glas": blockType = CUBE_TYPE.glas; break
+                }
+
+                let pos = this.getRayCubePos(false)
+                if (pos == null) break
+
+                let cube = new Cube({
+                    position: { x: pos.x, y: pos.y, z: pos.z },
+                    type: blockType,
+                    color: this.gui.getSelectedColor() || undefined,
+                })
+                this.world.cubes.push(cube)
+                cube.init(true)
+                this.world.superCluster.addCube(cube)
+
+                this.world.createMashup()
+
+                this.connection.sendMessage({
+                    type: MessageType.cubesAdd,
+                    cubes: [{ position: cube.position, type: cube.type, color: { r: cube.color.r, g: cube.color.g, b: cube.color.b } }]
+                })
+            } break
         }
     }
 
     getRayCubePos(alt: boolean) {
-        this.raycaster.set(this.camera.position, this.camera.getWorldDirection())
-        let intersects = this.raycaster.intersectObjects([this.world.mashup])
+        //if (this.world.superCluster.mashup == null) return
 
+        this.raycaster.set(this.camera.position, this.camera.getWorldDirection())
+        let meshes = []
+        for (let cluster of this.world.superCluster.clusters) {
+            meshes.push(cluster.mashup)
+        }
+        if (meshes.length == 0) return
+        let intersects = this.raycaster.intersectObjects(meshes/*[this.world.superCluster.mashup]*/)
+        
         if (intersects.length == 0) return null
         let intersect = intersects[0]
         
@@ -429,14 +240,9 @@ class Game {
     }
 
     meshShowing: boolean = false
-    timeLastFrame = 0
-    fps = 0
     animate() {
 
-        if (document.hasFocus() || performance.now() - this.timeLastFrame > 1000 / 8) {
-            let timeNow = performance.now()
-            this.fps = this.fps / 10 * 9 + 1000 / (timeNow - this.timeLastFrame) / 10 * 1
-            this.timeLastFrame = timeNow
+        if (document.hasFocus() || performance.now() - this.fps.timeLastFrame > 1000 / 8) {
 
             let t = this.camera.fov
             this.camera.fov = this.world.player.fast ? 100 : 90
@@ -445,8 +251,18 @@ class Game {
             this.step()
 
             // Raycast poiting position
-            if (this.pointer.locked) {
-                let pos = this.getRayCubePos(this.keyboard.key("Alt").pressed > 0)
+            if (this.gui.layer == GUI_LAYER.ingame) {
+                let onFace: boolean
+                switch (this.gui.getSelectedAction()) {
+                    case "Teleport":
+                    case "Remove Block":
+                    case "Pick Color":
+                        onFace = false
+                        break
+                    default:
+                        onFace = true
+                }
+                let pos = this.getRayCubePos(!onFace)
 
                 if (pos == null) {
                     if (this.meshShowing) {
@@ -468,6 +284,11 @@ class Game {
 
             // Render Scene
             this.renderer.render(this.scene, this.camera)
+
+            // GUI 
+            this.gui.animate()
+
+            this.fps.addFrame()
         }
 
         // Ask to do it again next Frame
@@ -481,27 +302,6 @@ class Game {
 
         this.world.step(deltaTime)
 
-        function f(n: number) {
-            return (n >= 0 ? '+' : '') + n.toFixed(10)
-        }
-
-        // Update Log
-        this.elDebugInfo.innerHTML =
-            `FPS: ${this.fps.toFixed(0)}<br/>` +
-            `Connection: ${this.connection.readyState()} ${this.connection.handshake}<br/>` +
-        `Players: ${this.world.players.length + 1}<br/>` +
-            `Cubes: ${this.world.cubes.length}<br/>` +
-            `Pointer: ${this.pointer.locked ? "locked" : "not tracking"}<br/>` +
-            `Position:<br>&nbsp;
-x ${f(this.world.player.position.x)}<br>&nbsp;
-y ${f(this.world.player.position.y)}<br>&nbsp;
-z ${f(this.world.player.position.z)}<br/>` +
-            `Looking:<br>&nbsp;
-x ${f(this.camera.getWorldDirection().x)}<br>&nbsp;
-y ${f(this.camera.getWorldDirection().y)}<br>&nbsp;
-z ${f(this.camera.getWorldDirection().z)}<br/>` +
-            ""
-
         this.stepPreviousTime = stepTime
     }
 }
@@ -511,6 +311,8 @@ class World {
     cubes: Cube[] = []
     player: Player
     players: Player[] = []
+
+    superCluster = new SuperCluster()
 
     lowestPoint = Infinity
 
@@ -535,35 +337,35 @@ class World {
 
     mashup: THREE.Mesh = null
     createMashup() {
-        console.time("mergeCubesTotal")
-        let geom = new THREE.Geometry()
+        //console.time("mergeCubesTotal")
+        //let geom = new THREE.Geometry()
 
-        for (let cube of this.cubes) {
-            geom.merge(cube.geom, new THREE.Matrix4().setPosition(new THREE.Vector3(cube.position.x, cube.position.y, cube.position.z)))
-        }
+        //for (let cube of this.cubes) {
+        //    geom.merge(cube.geom, new THREE.Matrix4().setPosition(new THREE.Vector3(cube.position.x, cube.position.y, cube.position.z)))
+        //}
 
-        // Reduce CPU->GPU load
-        geom.mergeVertices()
-        if (this.mashup) game.scene.remove(this.mashup)
-        Cube.texture.magFilter = THREE.NearestFilter
-        this.mashup = new THREE.Mesh(
-            new THREE.BufferGeometry().fromGeometry(geom),
-            <any>[
-                new THREE.MeshLambertMaterial( // stone
-                    { color: 0xffffff, wireframe: game.options.wireframe, vertexColors: THREE.FaceColors, map: Cube.texture, }),
-                new THREE.MeshLambertMaterial( // glas
-                    { color: 0xffffff, wireframe: game.options.wireframe, vertexColors: THREE.FaceColors, opacity: 0.45, transparent: true }),
-                new THREE.MeshLambertMaterial( // mono
-                    { color: 0xffffff, wireframe: game.options.wireframe, vertexColors: THREE.FaceColors, }),
-            ])
-        //this.mashup = <any>THREE.SceneUtils.createMultiMaterialObject(geom, [
-        //    new THREE.MeshLambertMaterial({ color: 0xffffff, wireframe: game.options.wireframe, vertexColors: THREE.FaceColors, map: Cube.texture }),
-        //    new THREE.MeshLambertMaterial({ color: 0x888888, wireframe: true }),
-        //])
+        //// Reduce CPU->GPU load
+        //geom.mergeVertices()
+        //if (this.mashup) game.scene.remove(this.mashup)
+        //Cube.texture.magFilter = THREE.NearestFilter
+        //this.mashup = new THREE.Mesh(
+        //    new THREE.BufferGeometry().fromGeometry(geom),
+        //    <any>[
+        //        new THREE.MeshLambertMaterial( // stone
+        //            { color: 0xffffff, wireframe: game.options.wireframe, vertexColors: THREE.FaceColors, map: Cube.texture, }),
+        //        new THREE.MeshLambertMaterial( // glas
+        //            { color: 0xffffff, wireframe: game.options.wireframe, vertexColors: THREE.FaceColors, opacity: 0.45, transparent: true }),
+        //        new THREE.MeshLambertMaterial( // mono
+        //            { color: 0xffffff, wireframe: game.options.wireframe, vertexColors: THREE.FaceColors, }),
+        //    ])
+        ////this.mashup = <any>THREE.SceneUtils.createMultiMaterialObject(geom, [
+        ////    new THREE.MeshLambertMaterial({ color: 0xffffff, wireframe: game.options.wireframe, vertexColors: THREE.FaceColors, map: Cube.texture }),
+        ////    new THREE.MeshLambertMaterial({ color: 0x888888, wireframe: true }),
+        ////])
         
-        game.scene.add(this.mashup)
+        ////game.scene.add(this.mashup)
 
-        console.timeEnd("mergeCubesTotal")
+        //console.timeEnd("mergeCubesTotal")
     }
 }
 
@@ -583,6 +385,210 @@ class SpriteObject {
         game.scene.add(sprite)
     }
 
+}
+
+class SuperCluster {
+
+    clusters: Cluster[] = []
+
+    addCubes(cubes: Cube[]) {
+        for (let cube of cubes) {
+            this.addCube(cube, false)
+        }
+        this.createMashup()
+    }
+
+    addCube(cube: Cube, updateMesh = true) {
+        let clusterX = cube.position.x >> 3
+        let clusterY = cube.position.y >> 3
+        let clusterZ = cube.position.z >> 3
+
+        // Get Cluster
+        let cluster = <Cluster>null
+        for (let _cluster of this.clusters) {
+            if (clusterX == _cluster.position.x &&
+                clusterY == _cluster.position.y &&
+                clusterZ == _cluster.position.z) {
+                cluster = _cluster
+                break
+            }
+        }
+        if (cluster == null) {
+            cluster = new Cluster({ x: clusterX, y: clusterY, z: clusterZ, })
+            this.clusters.push(cluster)
+        }
+
+        cluster.addCube(cube, {
+            x: cube.position.x - (clusterX << 3),
+            y: cube.position.y - (clusterY << 3),
+            z: cube.position.z - (clusterZ << 3),
+        }) 
+
+        if (updateMesh) {
+            cluster.createMashup()
+            this.createMashup()
+        }
+    }
+
+    removeCubeAt(cubePosition: Vector3, updateMesh = true) {
+        let clusterX = cubePosition.x >> 3
+        let clusterY = cubePosition.y >> 3
+        let clusterZ = cubePosition.z >> 3
+
+        // Get Cluster
+        let cluster = <Cluster>null
+        for (let _cluster of this.clusters) {
+            if (clusterX == _cluster.position.x &&
+                clusterY == _cluster.position.y &&
+                clusterZ == _cluster.position.z) {
+                cluster = _cluster
+                break
+            }
+        }
+        if (cluster == null) {
+            return
+        }
+
+        cluster.removeCubeAt({
+            x: cubePosition.x - (clusterX << 3),
+            y: cubePosition.y - (clusterY << 3),
+            z: cubePosition.z - (clusterZ << 3),
+        })
+
+        if (updateMesh) {
+            cluster.createMashup()
+            this.createMashup()
+        }
+    }
+
+    mashup: THREE.Mesh = null
+    wireMashup: THREE.Mesh = null
+    createMashup() {
+        console.time("mergeCubesTotal - CLUSTERS")
+        for (let cluster of this.clusters) {
+            if (cluster.geom == null) cluster.createMashup()
+        }
+        console.timeEnd("mergeCubesTotal - CLUSTERS")
+
+        //console.time("mergeCubesTotal - SUPER CLUSTER")
+        //let geom = new THREE.Geometry()
+
+        //for (let cluster of this.clusters) {
+        //    geom.merge(<THREE.Geometry>cluster.geom, new THREE.Matrix4())
+        //}
+
+        //// Reduce CPU->GPU load
+        //geom.mergeVertices()
+        //if (this.mashup) game.scene.remove(this.mashup)
+        //Cube.texture.magFilter = THREE.NearestFilter
+        //this.mashup = new THREE.Mesh(
+        //    geom,//new THREE.BufferGeometry().fromGeometry(geom),
+        //    <any>[
+        //        new THREE.MeshLambertMaterial( // stone
+        //            { color: 0xffffff, wireframe: game.options.wireframe, vertexColors: THREE.FaceColors, map: Cube.texture, }),
+        //        new THREE.MeshLambertMaterial( // glas
+        //            { color: 0xffffff, wireframe: game.options.wireframe, vertexColors: THREE.FaceColors, opacity: 0.45, transparent: true }),
+        //        new THREE.MeshLambertMaterial( // mono
+        //            { color: 0xffffff, wireframe: game.options.wireframe, vertexColors: THREE.FaceColors, }),
+        //    ])
+        //this.mashup = <any>THREE.SceneUtils.createMultiMaterialObject(geom, [
+        //    new THREE.MeshLambertMaterial({ color: 0xffffff, wireframe: game.options.wireframe, vertexColors: THREE.FaceColors, map: Cube.texture }),
+        //    new THREE.MeshLambertMaterial({ color: 0x888888, wireframe: true }),
+        //])
+        //game.scene.add(this.mashup)
+
+        //console.timeEnd("mergeCubesTotal - SUPER CLUSTER")
+
+
+        let wireGeom = new THREE.Geometry()
+        for (let cluster of this.clusters) {
+            wireGeom.merge(<THREE.Geometry>cluster.wireGeom, new THREE.Matrix4())
+        }
+
+        if (this.wireMashup) game.scene.remove(this.wireMashup)
+        this.wireMashup = new THREE.Mesh(
+            new THREE.BufferGeometry().fromGeometry(wireGeom),
+            new THREE.MeshLambertMaterial({ color: 0xffff00, wireframe: true, }))
+        game.scene.add(this.wireMashup)
+
+    }
+}
+
+class Cluster {
+    level: number 
+    position: Vector3
+    subs: (Cluster | Cube)[][][]
+
+    constructor(position: Vector3) {
+        this.position = position
+        this.level = 1
+
+        this.subs = []
+        for (let x = 0; x < 8; ++x) {
+            this.subs[x] = []
+            for (let y = 0; y < 8; ++y) {
+                this.subs[x][y] = []
+                for (let z = 0; z < 8; ++z) {
+                    this.subs[x][y][z] = null
+                }
+            }
+        }
+
+        this.wireGeom = new THREE.CubeGeometry(8, 8, 8)
+        this.wireGeom.applyMatrix(new THREE.Matrix4().setPosition(
+            new THREE.Vector3((this.position.x << 3) + 4, (this.position.y << 3) + 4, (this.position.z << 3) + 4)))
+    }
+
+    addCube(cube: Cube, pos: Vector3) {
+        this.subs[pos.x][pos.y][pos.z] = cube
+    }
+
+    removeCubeAt(cubePosition: Vector3) {
+        if (this.level == 1) {
+            let pos = this.subs[cubePosition.x][cubePosition.y][cubePosition.z].position;
+            (<Cube>this.subs[cubePosition.x][cubePosition.y][cubePosition.z]).remove()
+            this.subs[cubePosition.x][cubePosition.y][cubePosition.z] = null
+            game.connection.sendMessage({
+                type: MessageType.removeCubes,
+                cubes: [{ position: pos, type: undefined, color: undefined }]
+            })
+        }
+    }
+
+    mashup: THREE.Mesh
+    geom: THREE.Geometry = null
+    wireGeom: THREE.Geometry = null
+    createMashup() {
+        console.time(`mashup cluster l${this.level}`)
+        this.geom = new THREE.Geometry()
+
+        for (let sx of this.subs) {
+            for (let sy of sx) {
+                for (let sub of sy) {
+                    if (sub != null) {
+                        this.geom.merge(sub.geom, new THREE.Matrix4().setPosition(new THREE.Vector3(sub.position.x, sub.position.y, sub.position.z)))
+                    }
+                }
+            }
+        }
+
+        Cube.texture.magFilter = THREE.NearestFilter
+        if (this.mashup) game.scene.remove(this.mashup)
+        this.mashup = new THREE.Mesh(
+            this.geom,//new THREE.BufferGeometry().fromGeometry(geom),
+            <any>[
+                new THREE.MeshLambertMaterial( // stone
+                    { color: 0xffffff, wireframe: game.options.wireframe, vertexColors: THREE.FaceColors, map: Cube.texture, }),
+                new THREE.MeshLambertMaterial( // glas
+                    { color: 0xffffff, wireframe: game.options.wireframe, vertexColors: THREE.FaceColors, opacity: 0.45, transparent: true }),
+                new THREE.MeshLambertMaterial( // mono
+                    { color: 0xffffff, wireframe: game.options.wireframe, vertexColors: THREE.FaceColors, }),
+            ])
+        game.scene.add(this.mashup)
+
+
+        console.timeEnd(`mashup cluster l${this.level}`)
+    }
 }
 
 class Cube {

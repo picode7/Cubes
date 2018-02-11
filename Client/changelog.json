@@ -6,6 +6,11 @@
     "since jump is depending on 0 vertical velocity, it is sometimes possible to jump again on the highest point"
   ],
   "work in progress": [
+    "using clusters for rendering, trading a bit more time for each frame for way less time when modifing cubes",
+    "saving player on server",
+    "mousewheel improvments for touchpad",
+    "added menu GUI",
+    "actions can now be selected with mousewheel or numkeys and are displayed on the right. This includes block actions and teleport"
   ],
   "versions": [
     {
