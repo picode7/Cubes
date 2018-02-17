@@ -7,157 +7,11 @@ window.onload = () => {
     new Info()
 }
 
-
-interface Changelog {
-    "known issues": string[]
-    "work in progress": string[]
-    versions: {
-        version: string
-        changes: string[]
-    }[]
-}
-class Info {
-    constructor() {
-        let req = new XMLHttpRequest()
-        req.open("GET", "changelog.json")
-        req.onreadystatechange = () => {
-            if (req.readyState == 4 && req.status == 200) {
-                this.changelog(JSON.parse(req.responseText))
-            }
-        }
-        req.send()
-    }
-
-    private changelog(logs: Changelog) {
-
-        let oldVersion = localStorage.getItem("version")
-
-        let oldKnownIssues = localStorage.getItem("knownIssues")
-        let knownIssues = JSON.stringify(logs["known issues"])
-        
-        let oldWorkInProgress = localStorage.getItem("workInProgress")
-        let workInProgress = JSON.stringify(logs["work in progress"])
-
-        logs.versions.sort((a, b) => { return a.version > b.version ? -1 : 1 })
-
-        if (oldVersion == null || oldVersion < logs.versions[0].version
-            || oldKnownIssues != knownIssues
-            || oldWorkInProgress != workInProgress) {
-            document.getElementById("info").style.display = "block"
-            localStorage.setItem("version", logs.versions[0].version)
-            localStorage.setItem("knownIssues", knownIssues)
-            localStorage.setItem("workInProgress", workInProgress)
-        }
-
-        let elVersionLog = document.getElementById("versionlog")
-        let putContentInto = elVersionLog
-        let elSpoilerContent = document.createElement("div")
-
-        headList(oldKnownIssues != knownIssues ? elVersionLog : elSpoilerContent,
-            "known issues", logs["known issues"])
-
-        headList(oldWorkInProgress != workInProgress ? elVersionLog : elSpoilerContent,
-            "work in progress", logs["work in progress"])
-
-        for (let version of logs.versions) {
-            // put content into spoler if it's not new
-            if (oldVersion >= version.version) { putContentInto = elSpoilerContent }
-            headList(putContentInto, version.version, version.changes)
-        }
-        if (elSpoilerContent.childElementCount) {
-            let spoiler = elementFromHTML(`<div style="cursor:pointer;color:lightblue">Show more</div>`)
-            spoiler.onclick = () => { elSpoilerContent.style.display = "block"; spoiler.style.display = "none"}
-            elVersionLog.appendChild(spoiler)
-
-            elSpoilerContent.style.display = "none"
-            elVersionLog.appendChild(elSpoilerContent)
-        }
-
-        function headList(parent: HTMLElement, title: string, list: string[]) {
-            let elTitle = document.createElement("h3")
-            elTitle.innerText = title
-            parent.appendChild(elTitle)
-            let elList = document.createElement("ul")
-            parent.appendChild(elList)
-            for (let log of list) {
-                let elItem = document.createElement("li")
-                elItem.innerText = log
-                elList.appendChild(elItem)
-            }
-        }
-    }
-}
-
-class Chat {
-    elC= document.getElementById("chat")
-    elCL = document.getElementById("chatLog")
-    elCI = <HTMLInputElement>document.getElementById("chatInput")
-    elCS = <HTMLInputElement>document.getElementById("chatSend")
-
-    constructor() {
-
-        this.elCS.onclick = () => this.send()
-        this.elCI.onblur = () => this.show()
-
-        window.addEventListener("keydown", (e) => {
-            if (e.keyCode == Input.Key.ENTER) {
-                if (this.elCI !== document.activeElement) {
-                    this.show()
-                    this.elCI.focus()
-                } else {
-                    this.send()
-                    this.elCI.blur()
-                }
-            }
-        })
-    }
-
-    hideTimeout: number
-    show() {
-        this.elC.style.display = "block"
-
-        clearTimeout(this.hideTimeout)
-        this.hideTimeout = setTimeout(() => this.hide(), 5000)
-    }
-
-    hide() {
-        if (this.elCI == document.activeElement) return
-
-        this.elC.style.display = "none"
-        this.elCI.blur()
-    }
-
-    send() {
-
-        let txt = this.elCI.value.trim()
-        this.elCI.value = ""
-
-        this.onmessage(txt, true)
-    }
-
-    onmessage(text, self = false) {
-
-        this.show()
-        this.elCL.appendChild(elementFromHTML(
-            `<div${self?` style="color:#ccc"`:""}>${text}</div>`
-        ))
-
-        if (self) {
-            game.connection.sendMessage({
-                type: MessageType.chat,
-                text: text
-            })
-        }
-    }
-}
-
 class Game {
 
     scene: THREE.Scene
     camera: THREE.PerspectiveCamera
     renderer: THREE.WebGLRenderer
-
-    elDebugInfo: HTMLElement
 
     world: World
     connection: Connection
@@ -169,6 +23,9 @@ class Game {
     raycaster = new THREE.Raycaster()
     rollOverMesh: THREE.Mesh
 
+    gui: GUI
+    fps = new FPS()
+
     options = {
         wireframe: false,
         antialias: false,
@@ -178,18 +35,16 @@ class Game {
     }
 
     constructor() {
+        game = this
 
         let lsStringOptions = localStorage.getItem("options")
         if (lsStringOptions !== null) {
             let lsOptions = JSON.parse(lsStringOptions)
             this.options = lsOptions
-            this.updateOptionsGUI()
         }
 
         if (Input.PointerLock.isSupported == false) alert("Browser not supported!")
-
-        game = this
-
+        
         // Scene
         this.scene = new THREE.Scene()
         this.scene.background = new THREE.Color(0)
@@ -232,11 +87,7 @@ class Game {
         this.connection = new Connection()
 
         // GUI
-        document.body.appendChild(elementFromHTML(
-            `<div style="position:absolute; left:50%; top:50%; height:1px; width:1px; background:red;pointer-events:none"></div>`))
-        this.elDebugInfo = document.body.appendChild(elementFromHTML(
-            `<div style="position:absolute; left:0; top:0; width:200px; color: white; font-size:10pt;font-family: Consolas;pointer-events:none"></div>`))
-        this.elDebugInfo.style.display = this.options.debugInfo ? "block" : "none"
+        this.gui = new GUI()
 
         let rollOverGeo = new THREE.BoxGeometry(1, 1, 1);
         let rollOverMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true });
@@ -245,140 +96,153 @@ class Game {
         // Start rendering
         this.stepPreviousTime = Date.now()
         this.animate()
-        //setInterval(() => this.step(), 1000 / 30)
-    }
-
-    updateOptionsGUI() {
-        ; (<HTMLInputElement>document.getElementById("settings_aa")).checked = this.options.antialias
-            ; (<HTMLInputElement>document.getElementById("settings_debug")).checked = this.options.debugInfo
-            ; (<HTMLInputElement>document.getElementById("settings_fog")).checked = this.options.fog
-            ; (<HTMLInputElement>document.getElementById("settings_wireframe")).checked = this.options.wireframe;
-        (<HTMLSelectElement>document.getElementById("settings_renderScale")).selectedIndex = [25,50,75,100,150,200].indexOf(this.options.renderScale)
-    }
-
-    updateOptions(reload = false) {
-
-        this.options.antialias = (<HTMLInputElement>document.getElementById("settings_aa")).checked
-        this.options.debugInfo = (<HTMLInputElement>document.getElementById("settings_debug")).checked
-        this.options.fog = (<HTMLInputElement>document.getElementById("settings_fog")).checked
-        this.options.wireframe = (<HTMLInputElement>document.getElementById("settings_wireframe")).checked
-        this.options.renderScale = [25, 50, 75, 100, 150, 200][(<HTMLSelectElement>document.getElementById("settings_renderScale")).selectedIndex]
-        
-        localStorage.setItem("options", JSON.stringify(this.options))
-
-        // Debug Info
-        this.elDebugInfo.style.display = this.options.debugInfo ? "block" : "none"
-
-        // Wireframe
-        game.world.createMashup()
-
-        // Fog
-        if (this.options.fog) {
-            this.scene.fog = new THREE.Fog(0, 0, 25)
-        } else {
-            this.scene.fog = null
-        }
-
-        // Render Scale
-        this.renderer.setPixelRatio(this.options.renderScale / 100 * window.devicePixelRatio)
-
-        if (reload) location.reload()
     }
 
     onResize() {
 
         // Update render size
         this.renderer.setPixelRatio(this.options.renderScale / 100 * window.devicePixelRatio)
-        this.renderer.setSize(window.innerWidth , window.innerHeight)
+        this.renderer.setSize(window.innerWidth, window.innerHeight)
 
         // Update camera aspect ratio
         this.camera.aspect = window.innerWidth / window.innerHeight
         this.camera.updateProjectionMatrix()
     }
     mouseup(e: MouseEvent) {
-        if(e.button == 2) this.mouseRightDown = false
     }
-    mouseRightDown = false
-    traceOn= false
+
+    copyColor() {
+        let pos = this.getRayCubePos(true)
+
+        if (pos == null) {
+            this.gui.setColor(null)
+        } else {
+            for (let i = 0, max = this.world.cubes.length; i < max; ++i) {
+                if (this.world.cubes[i].position.x == pos.x &&
+                    this.world.cubes[i].position.y == pos.y &&
+                    this.world.cubes[i].position.z == pos.z) {
+
+                    this.gui.setColor(this.world.cubes[i].color.clone())
+
+                    break
+                }
+            }
+        }
+    }
+
+    traceOn = false
     onclick(e: MouseEvent) {
 
-        // Put block
-        if (this.pointer.locked) {
-            if (e.button == 0) {
-                let altKey = this.keyboard.key("AltLeft").pressed > 0
-                let pos = this.getRayCubePos(altKey)
+        if (this.gui.layer != GUI_LAYER.ingame) return
+        if (e.button != 0) return
 
-                if (pos != null) {
-                    if (altKey == false) {
-                        // Add Cube
-                        let cube = new Cube({ x: pos.x, y: pos.y, z: pos.z })
-                        this.world.cubes.push(cube)
-                        cube.init(true)
+        let action = this.gui.getSelectedAction()
 
+        switch (action) {
+            case "Pick Color": {
+                this.copyColor()
+            } break
+
+            case "Teleport": {
+                let pos = game.getRayCubePos(true)
+                if (pos == null) break
+
+                pos.x += 0.5
+                pos.y += 1 // go on top
+                pos.z += 0.5
+                game.world.player.teleport(pos)
+            } break
+
+            case "Remove Block": {
+                let pos = this.getRayCubePos(true)
+                if (pos == null) break
+
+                for (let i = 0, max = this.world.cubes.length; i < max; ++i) {
+                    if (this.world.cubes[i].position.x == pos.x &&
+                        this.world.cubes[i].position.y == pos.y &&
+                        this.world.cubes[i].position.z == pos.z) {
+                        //this.connection.sendMessage({
+                        //    type: MessageType.removeCubes,
+                        //    cubes: [{ position: this.world.cubes[i].position, type: undefined, color: undefined }]
+                        //})
+                        //this.world.cubes[i].remove()
+                        this.world.cubes.splice(i, 1)
                         this.world.createMashup()
-
-                        this.connection.sendMessage({
-                            type: MessageType.cubesAdd,
-                            cubes: [cube.position]
-                        })
-                        cube.mesh.position = pos.clone()
-                    } else {
-                        // Remove Cube
-                        for (let i = 0, max = this.world.cubes.length; i < max; ++i) {
-                            if (this.world.cubes[i].position.x == pos.x &&
-                                this.world.cubes[i].position.y == pos.y &&
-                                this.world.cubes[i].position.z == pos.z) {
-                                this.connection.sendMessage({
-                                    type: MessageType.removeCubes,
-                                    cubes: [this.world.cubes[i].position]
-                                })
-                                this.world.cubes[i].remove()
-                                this.world.cubes.splice(i, 1)
-                                this.world.createMashup()
-                                break
-                            }
-                        }
+                        break
                     }
                 }
-            } else if (e.button == 2) {
-                this.mouseRightDown = true
 
-            }
+                this.world.superCluster.removeCubeAt(pos)
+            } break
 
+            default: { // Block
+                let blockType
+                switch (action) {
+                    case "Stone": blockType = CUBE_TYPE.stone; break
+                    case "Mono": blockType = CUBE_TYPE.mono; break
+                    case "Glas": blockType = CUBE_TYPE.glas; break
+                }
+
+                let pos = this.getRayCubePos(false)
+                if (pos == null) break
+
+                let cube = new Cube({
+                    position: { x: pos.x, y: pos.y, z: pos.z },
+                    type: blockType,
+                    color: this.gui.getSelectedColor() || undefined,
+                })
+                this.world.cubes.push(cube)
+                cube.init(true)
+                this.world.superCluster.addCube(cube)
+
+                this.world.createMashup()
+
+                this.connection.sendMessage({
+                    type: MessageType.cubesAdd,
+                    cubes: [{ position: cube.position, type: cube.type, color: { r: cube.color.r, g: cube.color.g, b: cube.color.b } }]
+                })
+            } break
         }
     }
 
     getRayCubePos(alt: boolean) {
-        this.raycaster.set(this.camera.position, this.camera.getWorldDirection())
-        let intersects = this.raycaster.intersectObjects([this.world.mashup])
+        //if (this.world.superCluster.mashup == null) return
 
+        this.raycaster.set(this.camera.position, this.camera.getWorldDirection())
+        let meshes = []
+        for (let cluster of this.world.superCluster.clusters) {
+            meshes.push(cluster.mashup)
+        }
+        if (meshes.length == 0) return
+        let intersects = this.raycaster.intersectObjects(meshes/*[this.world.superCluster.mashup]*/)
+        
         if (intersects.length == 0) return null
         let intersect = intersects[0]
-
+        
+        let n = intersect.face.normal.clone()
         if (alt) {
-            let n = intersect.face.normal.clone()
             if (n.x > 0) n.x = -1; else n.x = 0
             if (n.y > 0) n.y = -1; else n.y = 0
             if (n.z > 0) n.z = -1; else n.z = 0
-            return intersect.point.clone().add(n).floor()
         } else {
-            let n = intersect.face.normal.clone()
             if (n.x > 0) n.x = 0
             if (n.y > 0) n.y = 0
             if (n.z > 0) n.z = 0
-            return intersect.point.clone().add(n).floor()
         }
+
+        let v = intersect.point.clone().add(n)
+        // floating point pression fix for flooring
+        let cutoff = (n: number) => { return Math.round(n * 100000000) / 100000000 } 
+        v.x = cutoff(v.x)
+        v.y = cutoff(v.y)
+        v.z = cutoff(v.z)
+        return v.floor()
     }
 
     meshShowing: boolean = false
-    timeLastFrame = 0
-    fps = 0
     animate() {
 
-        if (document.hasFocus() || performance.now() - this.timeLastFrame > 1000 / 8) {
-            let timeNow = performance.now()
-            this.fps = this.fps / 10 * 9 + 1000 / (timeNow - this.timeLastFrame) / 10 * 1
-            this.timeLastFrame = timeNow
+        if (document.hasFocus() || performance.now() - this.fps.timeLastFrame > 1000 / 8) {
 
             let t = this.camera.fov
             this.camera.fov = this.world.player.fast ? 100 : 90
@@ -387,8 +251,18 @@ class Game {
             this.step()
 
             // Raycast poiting position
-            if (this.pointer.locked) {
-                let pos = this.getRayCubePos(this.keyboard.key("AltLeft").pressed > 0)
+            if (this.gui.layer == GUI_LAYER.ingame) {
+                let onFace: boolean
+                switch (this.gui.getSelectedAction()) {
+                    case "Teleport":
+                    case "Remove Block":
+                    case "Pick Color":
+                        onFace = false
+                        break
+                    default:
+                        onFace = true
+                }
+                let pos = this.getRayCubePos(!onFace)
 
                 if (pos == null) {
                     if (this.meshShowing) {
@@ -410,6 +284,11 @@ class Game {
 
             // Render Scene
             this.renderer.render(this.scene, this.camera)
+
+            // GUI 
+            this.gui.animate()
+
+            this.fps.addFrame()
         }
 
         // Ask to do it again next Frame
@@ -423,27 +302,6 @@ class Game {
 
         this.world.step(deltaTime)
 
-        function f(n: number) {
-            return (n >= 0 ? '+' : '') + n.toFixed(10)
-        }
-
-        // Update Log
-        this.elDebugInfo.innerHTML =
-            `FPS: ${this.fps.toFixed(0)}<br/>` +
-            `Connection: ${this.connection.readyState()} ${this.connection.handshake}<br/>` +
-        `Players: ${this.world.players.length + 1}<br/>` +
-            `Cubes: ${this.world.cubes.length}<br/>` +
-            `Pointer: ${this.pointer.locked ? "locked" : "not tracking"}<br/>` +
-            `Position:<br>&nbsp;
-x ${f(this.world.player.position.x)}<br>&nbsp;
-y ${f(this.world.player.position.y)}<br>&nbsp;
-z ${f(this.world.player.position.z)}<br/>` +
-            `Looking:<br>&nbsp;
-x ${f(this.camera.getWorldDirection().x)}<br>&nbsp;
-y ${f(this.camera.getWorldDirection().y)}<br>&nbsp;
-z ${f(this.camera.getWorldDirection().z)}<br/>` +
-            ""
-
         this.stepPreviousTime = stepTime
     }
 }
@@ -453,6 +311,8 @@ class World {
     cubes: Cube[] = []
     player: Player
     players: Player[] = []
+
+    superCluster = new SuperCluster()
 
     lowestPoint = Infinity
 
@@ -477,31 +337,35 @@ class World {
 
     mashup: THREE.Mesh = null
     createMashup() {
-        console.time("mergeCubesTotal")
-        let geom = new THREE.Geometry()
+        //console.time("mergeCubesTotal")
+        //let geom = new THREE.Geometry()
 
-        for (let cube of this.cubes) {
-            geom.merge(<THREE.Geometry>cube.mesh.geometry, cube.mesh.matrix)
-        }
+        //for (let cube of this.cubes) {
+        //    geom.merge(cube.geom, new THREE.Matrix4().setPosition(new THREE.Vector3(cube.position.x, cube.position.y, cube.position.z)))
+        //}
 
-        // Reduce CPU->GPU load
-        geom.mergeVertices()
-        if (this.mashup) game.scene.remove(this.mashup)
-        Cube.texture.magFilter = THREE.NearestFilter
-        this.mashup = new THREE.Mesh(
-            new THREE.BufferGeometry().fromGeometry(geom),
-            <any>[
-                new THREE.MeshLambertMaterial({ color: 0xffffff, wireframe: game.options.wireframe, vertexColors: THREE.FaceColors, map: Cube.texture }),
-                new THREE.MeshLambertMaterial({ color: 0xffffff, wireframe: game.options.wireframe, vertexColors: THREE.FaceColors, }),
-            ])
-        //this.mashup = <any>THREE.SceneUtils.createMultiMaterialObject(geom, [
-        //    new THREE.MeshLambertMaterial({ color: 0xffffff, wireframe: game.options.wireframe, vertexColors: THREE.FaceColors, map: Cube.texture }),
-        //    new THREE.MeshLambertMaterial({ color: 0x888888, wireframe: true }),
-        //])
+        //// Reduce CPU->GPU load
+        //geom.mergeVertices()
+        //if (this.mashup) game.scene.remove(this.mashup)
+        //Cube.texture.magFilter = THREE.NearestFilter
+        //this.mashup = new THREE.Mesh(
+        //    new THREE.BufferGeometry().fromGeometry(geom),
+        //    <any>[
+        //        new THREE.MeshLambertMaterial( // stone
+        //            { color: 0xffffff, wireframe: game.options.wireframe, vertexColors: THREE.FaceColors, map: Cube.texture, }),
+        //        new THREE.MeshLambertMaterial( // glas
+        //            { color: 0xffffff, wireframe: game.options.wireframe, vertexColors: THREE.FaceColors, opacity: 0.45, transparent: true }),
+        //        new THREE.MeshLambertMaterial( // mono
+        //            { color: 0xffffff, wireframe: game.options.wireframe, vertexColors: THREE.FaceColors, }),
+        //    ])
+        ////this.mashup = <any>THREE.SceneUtils.createMultiMaterialObject(geom, [
+        ////    new THREE.MeshLambertMaterial({ color: 0xffffff, wireframe: game.options.wireframe, vertexColors: THREE.FaceColors, map: Cube.texture }),
+        ////    new THREE.MeshLambertMaterial({ color: 0x888888, wireframe: true }),
+        ////])
         
-        game.scene.add(this.mashup)
+        ////game.scene.add(this.mashup)
 
-        console.timeEnd("mergeCubesTotal")
+        //console.timeEnd("mergeCubesTotal")
     }
 }
 
@@ -523,174 +387,397 @@ class SpriteObject {
 
 }
 
+class SuperCluster {
+
+    clusters: Cluster[] = []
+
+    addCubes(cubes: Cube[]) {
+        for (let cube of cubes) {
+            this.addCube(cube, false)
+        }
+        this.createMashup()
+    }
+
+    addCube(cube: Cube, updateMesh = true) {
+        let clusterX = cube.position.x >> 3
+        let clusterY = cube.position.y >> 3
+        let clusterZ = cube.position.z >> 3
+
+        // Get Cluster
+        let cluster = <Cluster>null
+        for (let _cluster of this.clusters) {
+            if (clusterX == _cluster.position.x &&
+                clusterY == _cluster.position.y &&
+                clusterZ == _cluster.position.z) {
+                cluster = _cluster
+                break
+            }
+        }
+        if (cluster == null) {
+            cluster = new Cluster({ x: clusterX, y: clusterY, z: clusterZ, })
+            this.clusters.push(cluster)
+        }
+
+        cluster.addCube(cube, {
+            x: cube.position.x - (clusterX << 3),
+            y: cube.position.y - (clusterY << 3),
+            z: cube.position.z - (clusterZ << 3),
+        }) 
+
+        if (updateMesh) {
+            cluster.createMashup()
+            this.createMashup()
+        }
+    }
+
+    removeCubeAt(cubePosition: Vector3, updateMesh = true) {
+        let clusterX = cubePosition.x >> 3
+        let clusterY = cubePosition.y >> 3
+        let clusterZ = cubePosition.z >> 3
+
+        // Get Cluster
+        let cluster = <Cluster>null
+        for (let _cluster of this.clusters) {
+            if (clusterX == _cluster.position.x &&
+                clusterY == _cluster.position.y &&
+                clusterZ == _cluster.position.z) {
+                cluster = _cluster
+                break
+            }
+        }
+        if (cluster == null) {
+            return
+        }
+
+        cluster.removeCubeAt({
+            x: cubePosition.x - (clusterX << 3),
+            y: cubePosition.y - (clusterY << 3),
+            z: cubePosition.z - (clusterZ << 3),
+        })
+
+        if (updateMesh) {
+            cluster.createMashup()
+            this.createMashup()
+        }
+    }
+
+    mashup: THREE.Mesh = null
+    wireMashup: THREE.Mesh = null
+    createMashup() {
+        console.time("mergeCubesTotal - CLUSTERS")
+        for (let cluster of this.clusters) {
+            if (cluster.geom == null) cluster.createMashup()
+        }
+        console.timeEnd("mergeCubesTotal - CLUSTERS")
+
+        //console.time("mergeCubesTotal - SUPER CLUSTER")
+        //let geom = new THREE.Geometry()
+
+        //for (let cluster of this.clusters) {
+        //    geom.merge(<THREE.Geometry>cluster.geom, new THREE.Matrix4())
+        //}
+
+        //// Reduce CPU->GPU load
+        //geom.mergeVertices()
+        //if (this.mashup) game.scene.remove(this.mashup)
+        //Cube.texture.magFilter = THREE.NearestFilter
+        //this.mashup = new THREE.Mesh(
+        //    geom,//new THREE.BufferGeometry().fromGeometry(geom),
+        //    <any>[
+        //        new THREE.MeshLambertMaterial( // stone
+        //            { color: 0xffffff, wireframe: game.options.wireframe, vertexColors: THREE.FaceColors, map: Cube.texture, }),
+        //        new THREE.MeshLambertMaterial( // glas
+        //            { color: 0xffffff, wireframe: game.options.wireframe, vertexColors: THREE.FaceColors, opacity: 0.45, transparent: true }),
+        //        new THREE.MeshLambertMaterial( // mono
+        //            { color: 0xffffff, wireframe: game.options.wireframe, vertexColors: THREE.FaceColors, }),
+        //    ])
+        //this.mashup = <any>THREE.SceneUtils.createMultiMaterialObject(geom, [
+        //    new THREE.MeshLambertMaterial({ color: 0xffffff, wireframe: game.options.wireframe, vertexColors: THREE.FaceColors, map: Cube.texture }),
+        //    new THREE.MeshLambertMaterial({ color: 0x888888, wireframe: true }),
+        //])
+        //game.scene.add(this.mashup)
+
+        //console.timeEnd("mergeCubesTotal - SUPER CLUSTER")
+
+
+        let wireGeom = new THREE.Geometry()
+        for (let cluster of this.clusters) {
+            wireGeom.merge(<THREE.Geometry>cluster.wireGeom, new THREE.Matrix4())
+        }
+
+        if (this.wireMashup) game.scene.remove(this.wireMashup)
+        this.wireMashup = new THREE.Mesh(
+            new THREE.BufferGeometry().fromGeometry(wireGeom),
+            new THREE.MeshLambertMaterial({ color: 0xffff00, wireframe: true, }))
+        game.scene.add(this.wireMashup)
+
+    }
+}
+
+class Cluster {
+    level: number 
+    position: Vector3
+    subs: (Cluster | Cube)[][][]
+
+    constructor(position: Vector3) {
+        this.position = position
+        this.level = 1
+
+        this.subs = []
+        for (let x = 0; x < 8; ++x) {
+            this.subs[x] = []
+            for (let y = 0; y < 8; ++y) {
+                this.subs[x][y] = []
+                for (let z = 0; z < 8; ++z) {
+                    this.subs[x][y][z] = null
+                }
+            }
+        }
+
+        this.wireGeom = new THREE.CubeGeometry(8, 8, 8)
+        this.wireGeom.applyMatrix(new THREE.Matrix4().setPosition(
+            new THREE.Vector3((this.position.x << 3) + 4, (this.position.y << 3) + 4, (this.position.z << 3) + 4)))
+    }
+
+    addCube(cube: Cube, pos: Vector3) {
+        this.subs[pos.x][pos.y][pos.z] = cube
+    }
+
+    removeCubeAt(cubePosition: Vector3) {
+        if (this.level == 1) {
+            let pos = this.subs[cubePosition.x][cubePosition.y][cubePosition.z].position;
+            (<Cube>this.subs[cubePosition.x][cubePosition.y][cubePosition.z]).remove()
+            this.subs[cubePosition.x][cubePosition.y][cubePosition.z] = null
+            game.connection.sendMessage({
+                type: MessageType.removeCubes,
+                cubes: [{ position: pos, type: undefined, color: undefined }]
+            })
+        }
+    }
+
+    mashup: THREE.Mesh
+    geom: THREE.Geometry = null
+    wireGeom: THREE.Geometry = null
+    createMashup() {
+        console.time(`mashup cluster l${this.level}`)
+        this.geom = new THREE.Geometry()
+
+        for (let sx of this.subs) {
+            for (let sy of sx) {
+                for (let sub of sy) {
+                    if (sub != null) {
+                        this.geom.merge(sub.geom, new THREE.Matrix4().setPosition(new THREE.Vector3(sub.position.x, sub.position.y, sub.position.z)))
+                    }
+                }
+            }
+        }
+
+        Cube.texture.magFilter = THREE.NearestFilter
+        if (this.mashup) game.scene.remove(this.mashup)
+        this.mashup = new THREE.Mesh(
+            this.geom,//new THREE.BufferGeometry().fromGeometry(geom),
+            <any>[
+                new THREE.MeshLambertMaterial( // stone
+                    { color: 0xffffff, wireframe: game.options.wireframe, vertexColors: THREE.FaceColors, map: Cube.texture, }),
+                new THREE.MeshLambertMaterial( // glas
+                    { color: 0xffffff, wireframe: game.options.wireframe, vertexColors: THREE.FaceColors, opacity: 0.45, transparent: true }),
+                new THREE.MeshLambertMaterial( // mono
+                    { color: 0xffffff, wireframe: game.options.wireframe, vertexColors: THREE.FaceColors, }),
+            ])
+        game.scene.add(this.mashup)
+
+
+        console.timeEnd(`mashup cluster l${this.level}`)
+    }
+}
+
 class Cube {
 
     position: Vector3
     width: number
     height: number
 
-    mesh: THREE.Mesh
+    type: CUBE_TYPE
+    geom: THREE.Geometry
     color: THREE.Color
 
     neighbours: {
         top: Cube, bottom: Cube,
         front: Cube, back: Cube,
         left: Cube, right: Cube,
+    } = {
+        top: null, bottom: null,
+        front: null, back: null,
+        left: null, right: null,
     }
 
     static texture: THREE.Texture = null
 
-    constructor(position: Vector3) {
-        this.position = position
-        if (Cube.texture == null) Cube.texture = new THREE.TextureLoader().load("cube.png")
+    constructor(cubeData: Cube_Data) {
+        this.position = cubeData.position
+        if (cubeData.type == undefined) this.type = Math.floor(Math.random() * 3)
+        else this.type = cubeData.type
+        if (cubeData.color == undefined) this.color = new THREE.Color(Math.random(), Math.random(), Math.random())
+        else this.color = new THREE.Color(cubeData.color.r, cubeData.color.g, cubeData.color.b)
+
+        if (this.type== CUBE_TYPE.stone) this.color = new THREE.Color(0x888888)
+
         if (this.position.y < game.world.lowestPoint) game.world.lowestPoint = this.position.y
+        
+        if (Cube.texture == null) Cube.texture = new THREE.TextureLoader().load("cube.png")
     }
 
     init(updateNeighbours = false) {
-
-        let c = Math.random()
-        this.color = new THREE.Color(
-            c, c, c
-        )
 
         this.checkNeighbours(updateNeighbours)
         this.buildGeometry()
     }
 
     buildGeometry() {
-        let geom = new THREE.Geometry()
+
+        let c0 = this.color.clone().multiplyScalar(0.5)
+        let c1 = this.color
+        let c2 = this.color.clone().multiplyScalar(0.8)
+        let c3 = this.color.clone().multiplyScalar(0.9)
+
+        this.geom = new THREE.Geometry()
+
+        let face = (neighbour: Cube) => {
+            return neighbour == null || (neighbour.type == CUBE_TYPE.glas && this.type != CUBE_TYPE.glas)
+        }
+
+        let faces = {
+            top: face(this.neighbours.top),
+            bottom: face(this.neighbours.bottom),
+            left: face(this.neighbours.left),
+            right: face(this.neighbours.right),
+            front: face(this.neighbours.front),
+            back: face(this.neighbours.back),
+        }
 
         // Vertices
         let vbbl: number, vbfl: number, vbfr: number, vbbr: number,
             vtbl: number, vtfl: number, vtfr: number, vtbr: number
-        if (this.neighbours.bottom == null || this.neighbours.back == null || this.neighbours.left == null) {
-            vbbl = geom.vertices.push(new THREE.Vector3(0, 0, 0)) - 1
+        if (faces.bottom || faces.back || faces.left) {
+            vbbl = this.geom.vertices.push(new THREE.Vector3(0, 0, 0)) - 1
         }
-        if (this.neighbours.bottom == null || this.neighbours.front == null || this.neighbours.left == null) {
-            vbfl = geom.vertices.push(new THREE.Vector3(1, 0, 0)) - 1
+        if (faces.bottom || faces.front || faces.left) {
+            vbfl = this.geom.vertices.push(new THREE.Vector3(1, 0, 0)) - 1
         }
-        if (this.neighbours.bottom == null || this.neighbours.front == null || this.neighbours.right == null) {
-            vbfr = geom.vertices.push(new THREE.Vector3(1, 0, 1)) - 1
+        if (faces.bottom || faces.front || faces.right) {
+            vbfr = this.geom.vertices.push(new THREE.Vector3(1, 0, 1)) - 1
         }
-        if (this.neighbours.bottom == null || this.neighbours.back == null || this.neighbours.right == null) {
-            vbbr = geom.vertices.push(new THREE.Vector3(0, 0, 1)) - 1
+        if (faces.bottom || faces.back || faces.right) {
+            vbbr = this.geom.vertices.push(new THREE.Vector3(0, 0, 1)) - 1
         }
-        if (this.neighbours.top == null || this.neighbours.back == null || this.neighbours.left == null) {
-            vtbl = geom.vertices.push(new THREE.Vector3(0, 1, 0)) - 1
+        if (faces.top || faces.back || faces.left) {
+            vtbl = this.geom.vertices.push(new THREE.Vector3(0, 1, 0)) - 1
         }
-        if (this.neighbours.top == null || this.neighbours.front == null || this.neighbours.left == null) {
-            vtfl = geom.vertices.push(new THREE.Vector3(1, 1, 0)) - 1
+        if (faces.top || faces.front || faces.left) {
+            vtfl = this.geom.vertices.push(new THREE.Vector3(1, 1, 0)) - 1
         }
-        if (this.neighbours.top == null || this.neighbours.front == null || this.neighbours.right == null) {
-            vtfr = geom.vertices.push(new THREE.Vector3(1, 1, 1)) - 1
+        if (faces.top || faces.front || faces.right) {
+            vtfr = this.geom.vertices.push(new THREE.Vector3(1, 1, 1)) - 1
         }
-        if (this.neighbours.top == null || this.neighbours.back == null || this.neighbours.right == null) {
-            vtbr = geom.vertices.push(new THREE.Vector3(0, 1, 1)) - 1
+        if (faces.top || faces.back || faces.right) {
+            vtbr = this.geom.vertices.push(new THREE.Vector3(0, 1, 1)) - 1
         }
-
-        let c1 = new THREE.Color().setRGB(Math.random(), Math.random(), Math.random())
-        let c0 = c1.clone().multiplyScalar(0.5)
-        let c2 = c1.clone().multiplyScalar(0.8)
-        let c3 = c1.clone().multiplyScalar(0.9)
 
         // Faces
-
-        let material = Math.floor(Math.random() *2) 
-
-        geom.faceVertexUvs[0] = [];
-        if (this.neighbours.bottom == null) {
-            geom.faces.push(new THREE.Face3(vbfl, vbbr, vbbl, new THREE.Vector3(0, -1, 0), c0, material))
-            geom.faces.push(new THREE.Face3(vbbr, vbfl, vbfr, new THREE.Vector3(0, -1, 0), c0, material))
+        this.geom.faceVertexUvs[0] = []
+        if (faces.bottom) {
+            this.geom.faces.push(new THREE.Face3(vbfl, vbbr, vbbl, new THREE.Vector3(0, -1, 0), c0, this.type))
+            this.geom.faces.push(new THREE.Face3(vbbr, vbfl, vbfr, new THREE.Vector3(0, -1, 0), c0, this.type))
 
             let offsetx = 1 / 4
             let offsety = 2 / 4
             let d = 1 / 4
-            geom.faceVertexUvs[0].push([
+            this.geom.faceVertexUvs[0].push([
                 new THREE.Vector2(1, 3 / 4),
                 new THREE.Vector2(3 / 4, 2 / 4),
                 new THREE.Vector2(1, 2 / 4),
             ])
-            geom.faceVertexUvs[0].push([
+            this.geom.faceVertexUvs[0].push([
                 new THREE.Vector2(3 / 4, 2 / 4),
                 new THREE.Vector2(1, 3 / 4),
                 new THREE.Vector2(3 / 4, 3 / 4)
             ])
         }
-        if (this.neighbours.top == null) {
-            geom.faces.push(new THREE.Face3(vtbl, vtbr, vtfl, new THREE.Vector3(0, +1, 0), c1, material))
-            geom.faces.push(new THREE.Face3(vtfr, vtfl, vtbr, new THREE.Vector3(0, +1, 0), c1, material))
+        if (faces.top) {
+            this.geom.faces.push(new THREE.Face3(vtbl, vtbr, vtfl, new THREE.Vector3(0, +1, 0), c1, this.type))
+            this.geom.faces.push(new THREE.Face3(vtfr, vtfl, vtbr, new THREE.Vector3(0, +1, 0), c1, this.type))
 
             let offsetx = 1 / 4
             let offsety = 2 / 4
             let d = 1 / 4
-            geom.faceVertexUvs[0].push([
+            this.geom.faceVertexUvs[0].push([
                 new THREE.Vector2(offsetx + d * 0, offsety + d * 0),
                 new THREE.Vector2(offsetx + d * 1, offsety + d * 0),
                 new THREE.Vector2(offsetx + d * 0, offsety + d * 1),
             ])
-            geom.faceVertexUvs[0].push([
+            this.geom.faceVertexUvs[0].push([
                 new THREE.Vector2(offsetx + d * 1, offsety + d * 1),
                 new THREE.Vector2(offsetx + d * 0, offsety + d * 1),
                 new THREE.Vector2(offsetx + d * 1, offsety + d * 0)
             ])
         }
-        if (this.neighbours.left == null) {
-            geom.faces.push(new THREE.Face3(vbbl, vtbl, vbfl, new THREE.Vector3(0, 0, -1), c2, material))
-            geom.faces.push(new THREE.Face3(vtfl, vbfl, vtbl, new THREE.Vector3(0, 0, -1), c2, material))
+        if (faces.left) {
+            this.geom.faces.push(new THREE.Face3(vbbl, vtbl, vbfl, new THREE.Vector3(0, 0, -1), c2, this.type))
+            this.geom.faces.push(new THREE.Face3(vtfl, vbfl, vtbl, new THREE.Vector3(0, 0, -1), c2, this.type))
 
             let offsetx = 1 / 4
             let offsety = 2 / 4
             let d = 1 / 4
-            geom.faceVertexUvs[0].push([
+            this.geom.faceVertexUvs[0].push([
                 new THREE.Vector2(0, 2 / 4),
                 new THREE.Vector2(1 / 4, 2 / 4),
                 new THREE.Vector2(0, 3 / 4),
             ])
-            geom.faceVertexUvs[0].push([
+            this.geom.faceVertexUvs[0].push([
                 new THREE.Vector2(1 / 4, 3 / 4),
                 new THREE.Vector2(0, 3 / 4),
                 new THREE.Vector2(1 / 4, 2 / 4)
             ])
         }
-        if (this.neighbours.right == null) {
-            geom.faces.push(new THREE.Face3(vbfr, vtbr, vbbr, new THREE.Vector3(0, 0, +1), c2, material))
-            geom.faces.push(new THREE.Face3(vtbr, vbfr, vtfr, new THREE.Vector3(0, 0, +1), c2, material))
+        if (faces.right) {
+            this.geom.faces.push(new THREE.Face3(vbfr, vtbr, vbbr, new THREE.Vector3(0, 0, +1), c2, this.type))
+            this.geom.faces.push(new THREE.Face3(vtbr, vbfr, vtfr, new THREE.Vector3(0, 0, +1), c2, this.type))
 
             let offsetx = 2 / 4
             let offsety = 2 / 4
             let d = 1 / 4
-            geom.faceVertexUvs[0].push([
+            this.geom.faceVertexUvs[0].push([
                 new THREE.Vector2(3 / 4, 3 / 4),
                 new THREE.Vector2(2 / 4, 2 / 4),
                 new THREE.Vector2(3 / 4, 2 / 4),
             ])
-            geom.faceVertexUvs[0].push([
+            this.geom.faceVertexUvs[0].push([
                 new THREE.Vector2(2 / 4, 2 / 4),
                 new THREE.Vector2(3 / 4, 3 / 4),
                 new THREE.Vector2(2 / 4, 3 / 4)
             ])
         }
-        if (this.neighbours.back == null) {
-            geom.faces.push(new THREE.Face3(vbbl, vbbr, vtbl, new THREE.Vector3(-1, 0, 0), c3, material))
-            geom.faces.push(new THREE.Face3(vtbr, vtbl, vbbr, new THREE.Vector3(-1, 0, 0), c3, material))
+        if (faces.back) {
+            this.geom.faces.push(new THREE.Face3(vbbl, vbbr, vtbl, new THREE.Vector3(-1, 0, 0), c3, this.type))
+            this.geom.faces.push(new THREE.Face3(vtbr, vtbl, vbbr, new THREE.Vector3(-1, 0, 0), c3, this.type))
 
             let offsetx = 1 / 4
             let offsety = 1 / 4
             let d = 1 / 4
-            geom.faceVertexUvs[0].push([
+            this.geom.faceVertexUvs[0].push([
                 new THREE.Vector2(offsetx + d * 0, offsety + d * 0),
                 new THREE.Vector2(offsetx + d * 1, offsety + d * 0),
                 new THREE.Vector2(offsetx + d * 0, offsety + d * 1),
             ])
-            geom.faceVertexUvs[0].push([
+            this.geom.faceVertexUvs[0].push([
                 new THREE.Vector2(offsetx + d * 1, offsety + d * 1),
                 new THREE.Vector2(offsetx + d * 0, offsety + d * 1),
                 new THREE.Vector2(offsetx + d * 1, offsety + d * 0)
             ])
         }
-        if (this.neighbours.front == null) {
-            geom.faces.push(new THREE.Face3(vtfl, vbfr, vbfl, new THREE.Vector3(+1, 0, 0), c3, material))
-            geom.faces.push(new THREE.Face3(vbfr, vtfl, vtfr, new THREE.Vector3(+1, 0, 0), c3, material))
+        if (faces.front) {
+            this.geom.faces.push(new THREE.Face3(vtfl, vbfr, vbfl, new THREE.Vector3(+1, 0, 0), c3, this.type))
+            this.geom.faces.push(new THREE.Face3(vbfr, vtfl, vtfr, new THREE.Vector3(+1, 0, 0), c3, this.type))
 
             let offsetx = 1 / 4
             let offsety = 3 / 4
@@ -698,40 +785,17 @@ class Cube {
             let mirror = true
             let a = mirror ? 0 : 1
             let b = mirror ? 1 : 0
-            geom.faceVertexUvs[0].push([
+            this.geom.faceVertexUvs[0].push([
                 new THREE.Vector2(offsetx + d * a, offsety + d * a),
                 new THREE.Vector2(offsetx + d * b, offsety + d * b),
                 new THREE.Vector2(offsetx + d * a, offsety + d * b),
             ])
-            geom.faceVertexUvs[0].push([
+            this.geom.faceVertexUvs[0].push([
                 new THREE.Vector2(offsetx + d * b, offsety + d * b),
                 new THREE.Vector2(offsetx + d * a, offsety + d * a),
                 new THREE.Vector2(offsetx + d * b, offsety + d * a)
             ])
         }
-        
-        /*top 1 und 2
-                if (i % 2 == 0) {
-                    geom.faceVertexUvs[0].push([
-                        new THREE.Vector2(0, 1 / 4),
-                        new THREE.Vector2(1, 1 / 4),
-                        new THREE.Vector2(0, 1)
-                    ])
-                } else {
-                    geom.faceVertexUvs[0].push([
-                        new THREE.Vector2(1, 1),
-                        new THREE.Vector2(0, 1),
-                        new THREE.Vector2(1, 1 / 4)
-                    ])
-                }*/
-        this.mesh = new THREE.Mesh(
-            geom,
-            new THREE.MeshLambertMaterial({ color: /*0xffffff || */this.color.getHex(), wireframe: false }))
-
-        this.mesh.position.x = this.position.x
-        this.mesh.position.y = this.position.y
-        this.mesh.position.z = this.position.z
-        this.mesh.updateMatrix()
     }
 
     remove() {

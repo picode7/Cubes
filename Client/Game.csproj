@@ -86,6 +86,7 @@
     <TypeScriptCompile Include="Collision.ts" />
     <TypeScriptCompile Include="Connection.ts" />
     <TypeScriptCompile Include="functions.ts" />
+    <TypeScriptCompile Include="GUI.ts" />
     <TypeScriptCompile Include="Input.ts" />
     <TypeScriptCompile Include="LocalStorage.ts" />
     <TypeScriptCompile Include="Player.ts" />
@@ -121,7 +122,6 @@
           <SaveServerSettingsInUserFile>False</SaveServerSettingsInUserFile>
         </WebProjectProperties>
       </FlavorProperties>
-      <UserProperties changelog_1json__JSONSchema="http://json.schemastore.org/appveyor" />
     </VisualStudio>
   </ProjectExtensions>
 </Project>

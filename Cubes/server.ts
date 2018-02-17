@@ -14,21 +14,57 @@ interface WebSocketEx extends WebSocket {
 }
 
 class Player {
-    id: string = uuidv4()
-    position: {x: number, y: number, z: number}
+    id: string
+    position: { x: number, y: number, z: number }
+    orientation: { x: number, y: number, z: number }
+
+    constructor(playerId: string) {
+        if (playerId != "") {
+            this.id = playerId
+        } else {
+            this.id = uuidv4()
+        }
+    }
+
+    static playerById(playerId) {
+        let player = Player.getPlayer(playerId)
+        if (player == null) {
+            player = new Player(playerId)
+            Player.players.push(player)
+        }
+        return player
+    }
+    static players: Player[] = []
+    static getPlayer(id: string) {
+        for (let player of Player.players) {
+            if (player.id == id)
+                return player
+        }
+        return null
+    }
+    static readonly filePath = "../players.json"
+    static load() {
+        fs.readFile(Player.filePath, 'utf8', (err, data) => {
+            if (!err) {
+                Player.players = JSON.parse(data)
+            }
+        })
+    }
+    static save() {
+        fs.writeFile(Player.filePath, JSON.stringify(Player.players), { encoding: 'utf8' }, () => { })
+    }
 }
 
-let cubes: { x: number, y: number, z: number }[] = []
-load()
-setInterval(() => save(), 10 * 1000)
-function load() {
+
+let cubes: Cube_Data[] = []
+function loadCubes() {
     fs.readFile("../data.json", 'utf8', (err, data) => {
         if (!err) {
             cubes = JSON.parse(data)
         }
 
         // Default platform
-        if (!cubes|| !cubes.length ) {
+        if (!cubes || !cubes.length) {
             for (let y = 0; y < 8; ++y) {
                 for (let z = 0; z < 8; ++z) {
                     for (let x = 0; x < 8; ++x) {
@@ -37,7 +73,7 @@ function load() {
                             y == 0 ||
                             ((x == 0 || x == 7) && (z == 7 || z == 0))
                         ) {
-                            cubes.push({ x: x, y: y, z: z })
+                            cubes.push({ position: { x: x, y: y, z: z }, type: CUBE_TYPE.stone, color: { r: 0.5, g: 0.5, b: 0.5 } })
                         }
                     }
                 }
@@ -45,10 +81,18 @@ function load() {
         }
     })
 }
-function save() {
+function saveCubes() {
     fs.writeFile("../data.json", JSON.stringify(cubes), { encoding: 'utf8' }, () => { })
 }
 
+
+loadCubes()
+Player.load()
+setInterval(() => save(), 10 * 1000)
+function save() {
+    saveCubes()
+    Player.save()
+}
 
 const app = express()
 const server = http.createServer(app)
@@ -78,11 +122,11 @@ wsServer.on("connection", (socket: WebSocketEx) => {
 
             case MessageType.removeCubes:
                 broadcast(data, socket)
-                for (let cubePosition of data.cubes) {
+                for (let cubeData of data.cubes) {
                     for (let i = 0, max = cubes.length; i < max; ++i) {
-                        if (cubes[i].x == cubePosition.x &&
-                            cubes[i].y == cubePosition.y &&
-                            cubes[i].z == cubePosition.z) {
+                        if (cubes[i].position.x == cubeData.position.x &&
+                            cubes[i].position.y == cubeData.position.y &&
+                            cubes[i].position.z == cubeData.position.z) {
                             cubes.splice(i, 1)
                             break
                         }
@@ -98,12 +142,16 @@ wsServer.on("connection", (socket: WebSocketEx) => {
                 break
 
             case MessageType.playerUpdate:
-                socket.player.position = data.player.position
+                if (data.player.position) socket.player.position = data.player.position
+                if (data.player.orientation) socket.player.orientation = data.player.orientation
                 broadcast({ type: MessageType.playerUpdate, player: socket.player }, socket)
                 break
 
             case MessageType.handshake:
-                socket.player = new Player()
+                let playerId = ""
+                if (data.player && uuidv4_validate(data.player.id)) playerId = data.player.id
+                socket.player = Player.playerById(playerId)
+
                 socket.send(JSON.stringify({
                     type: MessageType.handshake,
                     player: socket.player,
@@ -126,7 +174,7 @@ wsServer.on("connection", (socket: WebSocketEx) => {
             }
         }
         broadcast(message, socket)
-        
+
         console.log("client lost", code, reason)
     })
 })
@@ -223,7 +271,14 @@ server.addListener("close", () => {
 // https://stackoverflow.com/a/2117523/4339170
 function uuidv4() {
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+        var r = Math.random() * 16 | 0, // random integer 0 to 15
+            v = c == 'x' ?
+                r :
+                (r & 0x3 | 0x8) // integer from 8 to 11
         return v.toString(16);
     });
+}
+
+function uuidv4_validate(str: string): boolean {
+    return str.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[4][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i) != null
 }
