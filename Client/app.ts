@@ -392,26 +392,13 @@ class SpriteObject {
 class TextCanvasObject {
 
     constructor() {
+        let text = game.chat.getCurrentInput()
+
         let width = 0.9
         let height = 0.9
 
         let geometry = new THREE.PlaneGeometry(width, height)
 
-        let canvas = this.createCanvas()
-
-        let texture = new THREE.Texture(canvas)
-        texture.needsUpdate = true
-        texture.magFilter = THREE.NearestFilter
-
-        let material = new THREE.MeshBasicMaterial({ color: 0xffffff, map: texture })
-
-        let mesh = new THREE.Mesh(geometry, material)
-        //mesh.doubleSided = true
-        mesh.position.set(1 - 0.5, 2 - 0.5, 1 + 0.005)
-        game.scene.add(mesh)
-    }
-
-    createCanvas() {
         let canvas = document.createElement("canvas")
         canvas.width = 200
         canvas.height = 200
@@ -421,13 +408,22 @@ class TextCanvasObject {
         context.fillRect(0, 0, canvas.width, canvas.height)
         //var textWidth = context.measureText(text).width;
 
-        context.font = 16 + "pt Consolas";
+        context.font = 20 + "px Consolas";
         context.textAlign = "center";
         context.textBaseline = "middle";
         context.fillStyle = "#000";
-        context.fillText("Hello :)", canvas.width / 2, canvas.height / 2);
+        context.fillText(text, Math.floor(canvas.width / 2),  Math.floor(canvas.height / 2), 200)
 
-        return canvas
+        let texture = new THREE.Texture(canvas)
+        texture.needsUpdate = true
+        texture.magFilter = THREE.NearestFilter
+
+        let material = new THREE.MeshBasicMaterial({ color: 0xffffff, map: texture,  })
+
+        let mesh = new THREE.Mesh(geometry, material)
+        //mesh.doubleSided = true
+        mesh.position.set(1 - 0.5, 2 - 0.5, 1 + 0.005)
+        game.scene.add(mesh)
     }
 }
 
