@@ -132,9 +132,14 @@ class Chat {
         this.elCI.blur()
     }
 
-    send() {
-        let txt = this.elCI.value.trim()
+    getCurrentInput() {
+        let text = this.elCI.value.trim()
         this.elCI.value = ""
+        return text
+    }
+
+    send() {
+        let txt = this.getCurrentInput()
 
         if (txt == "") return
 

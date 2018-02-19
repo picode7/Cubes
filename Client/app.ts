@@ -169,6 +169,8 @@ class Game {
         if (this.gui.layer != GUI_LAYER.ingame) return
         if (e.button != 0) return
 
+        new TextCanvasObject()
+
         let action = this.gui.getSelectedAction()
 
         switch (action) {
@@ -495,6 +497,11 @@ class GoldNugget extends SpriteObject {
                 }
             }
 
+        this.position = new THREE.Vector3(pos.x, pos.y, pos.z)
+        sprite.position.copy(this.position)
+        this.velocity = new THREE.Vector3()
+        sprite.scale.set(.1, .1, .1)
+        game.scene.add(sprite)
             // Finally update position
             this.sprite.position.x += deltaX
             this.sprite.position.y += deltaY
@@ -509,6 +516,44 @@ class GoldNugget extends SpriteObject {
                 game.world.objects.splice(i, 1)
             }
         }
+    }
+}
+
+class TextCanvasObject {
+
+    constructor() {
+        let text = game.chat.getCurrentInput()
+
+        let width = 0.9
+        let height = 0.9
+
+        let geometry = new THREE.PlaneGeometry(width, height)
+
+        let canvas = document.createElement("canvas")
+        canvas.width = 200
+        canvas.height = 200
+
+        let context = canvas.getContext("2d")
+        context.fillStyle = "#fff"
+        context.fillRect(0, 0, canvas.width, canvas.height)
+        //var textWidth = context.measureText(text).width;
+
+        context.font = 20 + "px Consolas";
+        context.textAlign = "center";
+        context.textBaseline = "middle";
+        context.fillStyle = "#000";
+        context.fillText(text, Math.floor(canvas.width / 2),  Math.floor(canvas.height / 2), 200)
+
+        let texture = new THREE.Texture(canvas)
+        texture.needsUpdate = true
+        texture.magFilter = THREE.NearestFilter
+
+        let material = new THREE.MeshBasicMaterial({ color: 0xffffff, map: texture,  })
+
+        let mesh = new THREE.Mesh(geometry, material)
+        //mesh.doubleSided = true
+        mesh.position.set(1 - 0.5, 2 - 0.5, 1 + 0.005)
+        game.scene.add(mesh)
     }
 }
 
@@ -1047,6 +1092,7 @@ class Cube {
     }
 
     checkNeighbours(updateOthers = false) {
+        // TODO also update parent cluster(s)
 
         this.neighbours = {
             top: null, bottom: null,
