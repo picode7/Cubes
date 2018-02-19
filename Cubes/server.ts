@@ -17,6 +17,7 @@ class Player {
     id: string
     position: { x: number, y: number, z: number }
     orientation: { x: number, y: number, z: number }
+    inventory: { gold: number }
 
     constructor(playerId: string) {
         if (playerId != "") {
@@ -144,6 +145,7 @@ wsServer.on("connection", (socket: WebSocketEx) => {
             case MessageType.playerUpdate:
                 if (data.player.position) socket.player.position = data.player.position
                 if (data.player.orientation) socket.player.orientation = data.player.orientation
+                if (data.player.inventory) socket.player.inventory = data.player.inventory
                 broadcast({ type: MessageType.playerUpdate, player: socket.player }, socket)
                 break
 

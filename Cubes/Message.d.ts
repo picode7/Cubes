@@ -11,7 +11,7 @@ declare const enum MessageType {
 
 declare const enum CUBE_TYPE {
     stone,
-    glas,
+    glas, 
     mono,
 }
 
@@ -32,6 +32,7 @@ interface Message {
         id: string,
         position?: { x: number, y: number, z: number },
         orientation?: { x: number, y: number, z: number },
+        inventory?: { gold: number },
     }
     text?: string
 }

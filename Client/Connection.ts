@@ -50,6 +50,9 @@ class Connection {
                     if (message.player.orientation) {
                         game.world.player.orientation = message.player.orientation
                     }
+                    if (message.player.inventory) {
+                        game.world.player.inventory = message.player.inventory
+                    }
                     game.world.player.updatePosition()
                     game.camera.rotation.order = 'YXZ';
                     game.camera.rotation.x = game.world.player.orientation.x

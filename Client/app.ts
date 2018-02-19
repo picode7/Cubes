@@ -1,6 +1,32 @@
 ﻿/// <reference path='types/three.d.ts' />
 /// <reference path='../Cubes/Message.d.ts' />
 
+class FramePerformance {
+
+    private _timers: {} = {}
+    private _startTime: number
+
+    frameStart() {
+        this._startTime = performance.now()
+        this._timers = {}
+    }
+
+    start(id: string) {
+        this._timers[id] = performance.now()
+    }
+
+    stop(id: string) {
+        this._timers[id] = performance.now() - this._timers[id]
+    }
+
+    frameEnd() {
+        let duration = performance.now() - this._startTime
+
+        //console.log(duration, this._timers, )
+    }
+}
+let framePerformance = new FramePerformance()
+
 let game: Game
 window.onload = () => {
     game = new Game()
@@ -22,6 +48,7 @@ class Game {
 
     raycaster = new THREE.Raycaster()
     rollOverMesh: THREE.Mesh
+    rollOverMesh2: THREE.LineSegments
 
     gui: GUI
     fps = new FPS()
@@ -33,6 +60,8 @@ class Game {
         debugInfo: false,
         renderScale: 100,
     }
+
+    fog = new THREE.Fog(0xc9e2ff, 50, 1000)
 
     constructor() {
         game = this
@@ -47,11 +76,11 @@ class Game {
         
         // Scene
         this.scene = new THREE.Scene()
-        this.scene.background = new THREE.Color(0)
-        if(this.options.fog) this.scene.fog = new THREE.Fog(0, 0, 25)
+        this.scene.background = new THREE.Color(0xc9e2ff)
+        if (this.options.fog) this.scene.fog = this.fog
 
         // Camera
-        this.camera = new THREE.PerspectiveCamera(90, 1, 0.1, 1000)
+        this.camera = new THREE.PerspectiveCamera(90, 1, 0.1, 10000)
 
         // Renderer
         this.renderer = new THREE.WebGLRenderer({ antialias: this.options.antialias })
@@ -79,9 +108,9 @@ class Game {
         window.addEventListener("mouseup", (event) => {
             this.mouseup(event)
         })
-        window.onbeforeunload = function () { // Prevent Ctrl+W ... Chrome!
-            return "Really want to quit the game?"
-        }
+        //window.onbeforeunload = function () { // Prevent Ctrl+W ... Chrome!
+        //    return "Really want to quit the game?"
+        //}
 
         // Network
         this.connection = new Connection()
@@ -90,8 +119,12 @@ class Game {
         this.gui = new GUI()
 
         let rollOverGeo = new THREE.BoxGeometry(1, 1, 1);
-        let rollOverMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true });
+        let rollOverMaterial = new THREE.MeshBasicMaterial({ color: 0x3966a2, transparent: true, opacity: 0.75 });
         this.rollOverMesh = new THREE.Mesh(rollOverGeo, rollOverMaterial)
+
+        this.rollOverMesh2 = new THREE.LineSegments(
+            new THREE.EdgesGeometry(<any>rollOverGeo, undefined),
+            new THREE.LineBasicMaterial(({ color: 0xffffff })))
 
         // Start rendering
         this.stepPreviousTime = Date.now()
@@ -205,20 +238,28 @@ class Game {
         }
     }
 
-    getRayCubePos(alt: boolean) {
-        //if (this.world.superCluster.mashup == null) return
+    getRayCubePos(alt: boolean): THREE.Vector3 {
+        const maxDistance = 20
 
+        framePerformance.start("raytrace")
         this.raycaster.set(this.camera.position, this.camera.getWorldDirection())
+
         let meshes = []
         for (let cluster of this.world.superCluster.clusters) {
             meshes.push(cluster.mashup)
         }
-        if (meshes.length == 0) return
-        let intersects = this.raycaster.intersectObjects(meshes/*[this.world.superCluster.mashup]*/)
-        
-        if (intersects.length == 0) return null
+        if (meshes.length == 0) {
+            framePerformance.stop("raytrace")
+            return null
+        }
+
+        let intersects = this.raycaster.intersectObjects(meshes)
+        if (intersects.length == 0) {
+            framePerformance.stop("raytrace")
+            return null
+        }
+
         let intersect = intersects[0]
-        
         let n = intersect.face.normal.clone()
         if (alt) {
             if (n.x > 0) n.x = -1; else n.x = 0
@@ -231,12 +272,20 @@ class Game {
         }
 
         let v = intersect.point.clone().add(n)
-        // floating point pression fix for flooring
-        let cutoff = (n: number) => { return Math.round(n * 100000000) / 100000000 } 
+        let cutoff = (n: number) => { return Math.round(n * 100000000) / 100000000 } // floating point pression fix for flooring
         v.x = cutoff(v.x)
         v.y = cutoff(v.y)
         v.z = cutoff(v.z)
-        return v.floor()
+        
+        let result = v.floor()
+
+        if (this.camera.position.distanceTo(result) > maxDistance) {
+            framePerformance.stop("raytrace")
+            return null
+        }
+
+        framePerformance.stop("raytrace")
+        return result
     }
 
     meshShowing: boolean = false
@@ -244,13 +293,16 @@ class Game {
 
         if (document.hasFocus() || performance.now() - this.fps.timeLastFrame > 1000 / 8) {
 
+            framePerformance.frameStart()
+
             let t = this.camera.fov
             this.camera.fov = this.world.player.fast ? 100 : 90
             if (t != this.camera.fov) this.camera.updateProjectionMatrix()
 
+            framePerformance.start("step")
             this.step()
-
-            // Raycast poiting position
+            framePerformance.stop("step")
+            
             if (this.gui.layer == GUI_LAYER.ingame) {
                 let onFace: boolean
                 switch (this.gui.getSelectedAction()) {
@@ -268,27 +320,36 @@ class Game {
                     if (this.meshShowing) {
                         this.meshShowing = false
                         this.scene.remove(this.rollOverMesh)
+                        this.scene.remove(this.rollOverMesh2)
                     }
                 } else {
                     this.rollOverMesh.position.copy(pos)
                     this.rollOverMesh.position.addScalar(0.5)
+                    this.rollOverMesh2.position.copy(pos)
+                    this.rollOverMesh2.position.addScalar(0.5)
                     if (!this.meshShowing) {
                         this.scene.add(this.rollOverMesh)
+                        this.scene.add(this.rollOverMesh2)
                         this.meshShowing = true
                     }
                 }
             } else {
                 this.meshShowing = false
                 this.scene.remove(this.rollOverMesh)
+                this.scene.remove(this.rollOverMesh2)
             }
 
             // Render Scene
+            framePerformance.start("render")
             this.renderer.render(this.scene, this.camera)
+            framePerformance.stop("render")
 
             // GUI 
             this.gui.animate()
 
             this.fps.addFrame()
+
+            framePerformance.frameEnd()
         }
 
         // Ask to do it again next Frame
@@ -312,6 +373,8 @@ class World {
     player: Player
     players: Player[] = []
 
+    objects: GoldNugget[] = []
+
     superCluster = new SuperCluster()
 
     lowestPoint = Infinity
@@ -332,6 +395,9 @@ class World {
         this.player.step(deltaTime)
         for (let player of this.players) {
             player.step(deltaTime)
+        }
+        for (let object of this.objects) {
+            object.step(deltaTime)
         }
     }
 
@@ -371,31 +437,155 @@ class World {
 
 class SpriteObject {
 
-    position: THREE.Vector3
-    velocity: THREE.Vector3
+    sprite: THREE.Sprite
+    
+    velocity: Vector3 = { x: 0, y: 0, z: 0 }
+
+    constructor(pos: Vector3, color = 0xffffff) {
+        let spriteMaterial = new THREE.SpriteMaterial({ /*map: spriteMap,*/ color: color })
+        this.sprite = new THREE.Sprite(spriteMaterial)
+
+        this.sprite.position.set(pos.x, pos.y, pos.z)
+        this.velocity = new THREE.Vector3()
+        this.sprite.scale.set(.1,.1,.1)
+        game.scene.add(this.sprite)
+    }
+}
+
+class GoldNugget extends SpriteObject {
 
     constructor(pos: Vector3) {
-        var spriteMaterial = new THREE.SpriteMaterial({ /*map: spriteMap,*/ color: 0xffffff })
-        var sprite = new THREE.Sprite(spriteMaterial)
-
-        this.position = new THREE.Vector3(pos.x, pos.y, pos.z)
-        sprite.position.copy(this.position)
-        this.velocity = new THREE.Vector3()
-        sprite.scale.set(.1,.1,.1)
-        game.scene.add(sprite)
+        super(pos, 0xFFD700)
+        game.world.objects.push(this)
     }
 
+    step(deltaTime: number) {
+        const collisionRadius = 0.1 / 2
+
+        // Gravity
+        this.velocity.y += -9.81 * deltaTime
+
+        // Movement
+        let deltaX = this.velocity.x * deltaTime
+        let deltaY = this.velocity.y * deltaTime
+        let deltaZ = this.velocity.z * deltaTime
+
+        // Validate Movement
+        if (this.sprite.position.y + deltaY < game.world.lowestPoint - 20) {
+            this.remove()
+        } else {
+
+            let cubes = game.world.superCluster.getNearbyCubes(this.sprite.position)
+
+            for (let cube of cubes) {
+
+                // Ignore if not colliding
+                if (!Collision.circle_rect(
+                    this.sprite.position.x + deltaX, this.sprite.position.z + deltaZ, collisionRadius,
+                    cube.position.x, cube.position.z, cube.position.x + 1, cube.position.z + 1,
+                )) continue
+
+                let cutoff = (n: number) => { return Math.round(n * 100000000) / 100000000 } // floating point pression fix for flooring
+                let a = cutoff(this.sprite.position.y - collisionRadius) >= cutoff(cube.position.y + 1)
+                let b = this.sprite.position.y - collisionRadius + deltaY < cube.position.y + 1
+                // Check from top down
+                if (a && b) {
+                    deltaY = (cube.position.y + collisionRadius + 1) - this.sprite.position.y
+                    this.velocity.y = 0
+                }
+            }
+
+            // Finally update position
+            this.sprite.position.x += deltaX
+            this.sprite.position.y += deltaY
+            this.sprite.position.z += deltaZ
+        }
+    }
+
+    remove() {
+        game.scene.remove(this.sprite)
+        for (let i = 0; i < game.world.objects.length; ++i) {
+            if (game.world.objects[i] == this) {
+                game.world.objects.splice(i, 1)
+            }
+        }
+    }
 }
 
 class SuperCluster {
 
     clusters: Cluster[] = []
 
+    getNearbyCubes(position: Vector3) {
+
+        let clusterX = position.x >> 3
+        let clusterY = position.y >> 3
+        let clusterZ = position.z >> 3
+
+        let clusters = [
+            this.getClusterAt({ x: clusterX - 1, y: clusterY - 1, z: clusterZ - 1 }),
+            this.getClusterAt({ x: clusterX - 1, y: clusterY - 1, z: clusterZ - 0 }),
+            this.getClusterAt({ x: clusterX - 1, y: clusterY - 1, z: clusterZ + 1 }),
+            this.getClusterAt({ x: clusterX - 1, y: clusterY - 0, z: clusterZ - 1 }),
+            this.getClusterAt({ x: clusterX - 1, y: clusterY - 0, z: clusterZ - 0 }),
+            this.getClusterAt({ x: clusterX - 1, y: clusterY - 0, z: clusterZ + 1 }),
+            this.getClusterAt({ x: clusterX - 1, y: clusterY + 1, z: clusterZ - 1 }),
+            this.getClusterAt({ x: clusterX - 1, y: clusterY + 1, z: clusterZ - 0 }),
+            this.getClusterAt({ x: clusterX - 1, y: clusterY + 1, z: clusterZ + 1 }),
+
+            this.getClusterAt({ x: clusterX - 0, y: clusterY - 1, z: clusterZ - 1 }),
+            this.getClusterAt({ x: clusterX - 0, y: clusterY - 1, z: clusterZ - 0 }),
+            this.getClusterAt({ x: clusterX - 0, y: clusterY - 1, z: clusterZ + 1 }),
+            this.getClusterAt({ x: clusterX - 0, y: clusterY - 0, z: clusterZ - 1 }),
+            this.getClusterAt({ x: clusterX - 0, y: clusterY - 0, z: clusterZ - 0 }),
+            this.getClusterAt({ x: clusterX - 0, y: clusterY - 0, z: clusterZ + 1 }),
+            this.getClusterAt({ x: clusterX - 0, y: clusterY + 1, z: clusterZ - 1 }),
+            this.getClusterAt({ x: clusterX - 0, y: clusterY + 1, z: clusterZ - 0 }),
+            this.getClusterAt({ x: clusterX - 0, y: clusterY + 1, z: clusterZ + 1 }),
+
+            this.getClusterAt({ x: clusterX + 1, y: clusterY - 1, z: clusterZ - 1 }),
+            this.getClusterAt({ x: clusterX + 1, y: clusterY - 1, z: clusterZ - 0 }),
+            this.getClusterAt({ x: clusterX + 1, y: clusterY - 1, z: clusterZ + 1 }),
+            this.getClusterAt({ x: clusterX + 1, y: clusterY - 0, z: clusterZ - 1 }),
+            this.getClusterAt({ x: clusterX + 1, y: clusterY - 0, z: clusterZ - 0 }),
+            this.getClusterAt({ x: clusterX + 1, y: clusterY - 0, z: clusterZ + 1 }),
+            this.getClusterAt({ x: clusterX + 1, y: clusterY + 1, z: clusterZ - 1 }),
+            this.getClusterAt({ x: clusterX + 1, y: clusterY + 1, z: clusterZ - 0 }),
+            this.getClusterAt({ x: clusterX + 1, y: clusterY + 1, z: clusterZ + 1 }),
+        ]
+
+        let cubes = []
+        for (let cluster of clusters) {
+            if (!cluster) continue
+            for (let x = 0; x < 8; ++x) {
+                for (let y = 0; y < 8; ++y) {
+                    for (let z = 0; z < 8; ++z) {
+                        let cube = cluster.subs[x][y][z]
+                        if (cube == null) continue
+                        cubes.push(cube)
+                    }
+                }
+            }
+        }
+
+        return cubes
+    }
+
     addCubes(cubes: Cube[]) {
         for (let cube of cubes) {
             this.addCube(cube, false)
         }
         this.createMashup()
+    }
+
+    getClusterAt(position: Vector3) {
+        for (let cluster of this.clusters) {
+            if (position.x == cluster.position.x &&
+                position.y == cluster.position.y &&
+                position.z == cluster.position.z) {
+                return cluster
+            }
+        }
     }
 
     addCube(cube: Cube, updateMesh = true) {
@@ -462,7 +652,7 @@ class SuperCluster {
     }
 
     mashup: THREE.Mesh = null
-    wireMashup: THREE.Mesh = null
+    wireMashup: THREE.LineSegments = null
     createMashup() {
         console.time("mergeCubesTotal - CLUSTERS")
         for (let cluster of this.clusters) {
@@ -504,13 +694,22 @@ class SuperCluster {
         for (let cluster of this.clusters) {
             wireGeom.merge(<THREE.Geometry>cluster.wireGeom, new THREE.Matrix4())
         }
-
         if (this.wireMashup) game.scene.remove(this.wireMashup)
-        this.wireMashup = new THREE.Mesh(
-            new THREE.BufferGeometry().fromGeometry(wireGeom),
-            new THREE.MeshLambertMaterial({ color: 0xffff00, wireframe: true, }))
-        game.scene.add(this.wireMashup)
+        this.wireMashup = new THREE.LineSegments(
+            new THREE.EdgesGeometry(<any>wireGeom, undefined),
+            new THREE.LineBasicMaterial(({ color: 0xffff00 })))
+        this.showWireGeom(this._showWireGrom)
+    }
 
+    _showWireGrom = game.options.debugInfo
+    showWireGeom(show: boolean) {
+        this._showWireGrom = show
+        if (this.wireMashup == null) return
+        if (show) {
+            game.scene.add(this.wireMashup)
+        } else {
+            game.scene.remove(this.wireMashup)
+        }
     }
 }
 
@@ -634,11 +833,18 @@ class Cube {
     }
 
     buildGeometry() {
-
-        let c0 = this.color.clone().multiplyScalar(0.5)
-        let c1 = this.color
-        let c2 = this.color.clone().multiplyScalar(0.8)
-        let c3 = this.color.clone().multiplyScalar(0.9)
+        let c0, c1, c2, c3
+        if (this.type != CUBE_TYPE.glas) {
+            c0 = this.color.clone().multiplyScalar(0.5)
+            c1 = this.color
+            c2 = this.color.clone().multiplyScalar(0.8)
+            c3 = this.color.clone().multiplyScalar(0.9)
+        } else {
+            c0 = this.color
+            c1 = this.color
+            c2 = this.color
+            c3 = this.color
+        }
 
         this.geom = new THREE.Geometry()
 
@@ -830,6 +1036,13 @@ class Cube {
                 if (cube.position.y < game.world.lowestPoint)
                     game.world.lowestPoint = cube.position.y
             }
+        }
+
+        if (this.type == CUBE_TYPE.stone) {
+            while(true) {
+                if (Math.floor(Math.random() * 2) == 0) break
+                new GoldNugget(new THREE.Vector3(this.position.x + Math.random(), this.position.y + Math.random(), this.position.z + Math.random()))
+            } 
         }
     }
 

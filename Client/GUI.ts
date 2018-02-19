@@ -311,11 +311,12 @@ class GUI {
         this.elDebugInfo.style.display = game.options.debugInfo ? "block" : "none"
 
         // Wireframe
+        game.world.superCluster.showWireGeom(game.options.debugInfo)
         game.world.createMashup()
 
         // Fog
         if (game.options.fog) {
-            game.scene.fog = new THREE.Fog(0, 0, 25)
+            game.scene.fog = game.fog
         } else {
             game.scene.fog = null
         }
@@ -380,6 +381,8 @@ class GUI {
 
     animate() {
 
+        document.getElementById("guiOther").innerHTML = `Gold: ${game.world.player.inventory.gold}`
+
         function f(n: number) {
             return (n >= 0 ? '+' : '') + n.toFixed(10)
         }
@@ -387,8 +390,9 @@ class GUI {
         this.elDebugInfo.innerHTML =
             `FPS: ${Math.round(game.fps.fps)}<br/>` +
             `Connection: ${game.connection.readyState()} ${game.connection.handshake}<br/>` +
-            `Players: ${game.world.players.length + 1}<br/>` +
-            `Cubes: ${game.world.cubes.length}<br/>` +
+        `Players: ${game.world.players.length + 1}<br/>` +
+        `Cubes: ${game.world.cubes.length}<br/>` +
+        `Clusters: ${game.world.superCluster.clusters.length}<br/>` +
             `Pointer: ${game.pointer.locked ? "locked" : "not tracking"}<br/>` +
             `Position:<br>&nbsp;
 x ${f(game.world.player.position.x)}<br>&nbsp;

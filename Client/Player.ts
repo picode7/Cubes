@@ -15,6 +15,10 @@ class Player {
     walkSpeed = 0
     walkSideSpeed = 0
 
+    inventory = {
+        gold: 0,
+    }
+
     constructor(position: Vector3, readonly controled: boolean) {
 
         this.position = position
@@ -127,6 +131,10 @@ class Player {
     velocityY = 0
     step(deltaTime: number) {
         if (this.controled && game.world.cubes.length) {
+            framePerformance.start("player step")
+
+            const collisionRadius = Math.sqrt(0.5 * 0.5 / 2)
+
             this.orientation.x = game.camera.rotation.x
             this.orientation.y = game.camera.rotation.y
             this.orientation.z = game.camera.rotation.z 
@@ -169,15 +177,14 @@ class Player {
             let deltaY = this.velocityY * deltaTime
             let deltaZ = speed * -Math.cos(-radians) * deltaTime
 
-            if (this.position.y < game.world.lowestPoint - 20) {
+            if (this.position.y + deltaY < game.world.lowestPoint - 20) {
                 // Respawn
                 this.spawn()
             } else {
 
                 // Collisions
-                let collisionRadius = Math.sqrt(0.5 * 0.5 / 2)
-
-                for (let cube of game.world.cubes) {
+                let cubes = game.world.superCluster.getNearbyCubes(this.position)
+                for (let cube of cubes) {
 
                     // Ignore if not colliding
                     if (!Collision.circle_rect(
@@ -186,7 +193,6 @@ class Player {
                     )) continue
 
                     // Check side collisions
-
                     let a = cube.position.y + 1 > this.position.y
                     let b = cube.position.y < this.position.y + 2
                     if (a && b) {
@@ -206,16 +212,23 @@ class Player {
                         this.velocityY = 0
                     }
                 }
-
                 // Finally update position
                 this.position.x += deltaX
                 this.position.y += deltaY
                 this.position.z += deltaZ
             }
-
             this.updatePosition()
 
-            //console.timeEnd("playerStep")
+            for (let object of game.world.objects) {
+                if (object.sprite.position.y >= this.position.y &&
+                    object.sprite.position.y <= this.position.y + 2 &&
+                    Collision.circle_point(this.position.x, this.position.z, 1, object.sprite.position.x, object.sprite.position.z)) {
+                    object.remove()
+                    this.inventory.gold++
+                }
+            }
+
+            framePerformance.stop("player step")
         }
 
         if (this.prevPosition.x != this.position.x
@@ -232,6 +245,7 @@ class Player {
                         id: this.id,
                         position: this.position,
                         orientation: this.orientation,
+                        inventory: this.inventory,
                     }
                 })
             }
@@ -246,5 +260,7 @@ class Player {
             this.prevOrientation.y = this.orientation.y
             this.prevOrientation.z = this.orientation.z
         }
+
+        //console.timeEnd("player step")
     }
 }
