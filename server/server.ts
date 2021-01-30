@@ -273,7 +273,7 @@ function resError(res: express.Response, errCode: number, errMsg?: string) {
 }
 
 // Start Server
-server.listen(8088, () => {
+server.listen(process.env.PORT, () => {
   let host = server.address().address
   let port = server.address().port
 
