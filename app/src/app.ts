@@ -1,5 +1,5 @@
 ﻿/// <reference path='types/three.d.ts' />
-/// <reference path='../server/Message.d.ts' />
+/// <reference path='../../server/Message.d.ts' />
 
 class FramePerformance {
   private _timers: {} = {}

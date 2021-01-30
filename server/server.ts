@@ -42,7 +42,7 @@ class Player {
     }
     return null
   }
-  static readonly filePath = '../players.json'
+  static readonly filePath = '../data/players.json'
   static load() {
     fs.readFile(Player.filePath, 'utf8', (err, data) => {
       if (!err) {
@@ -57,7 +57,7 @@ class Player {
 
 let cubes: Cube_Data[] = []
 function loadCubes() {
-  fs.readFile('../data.json', 'utf8', (err, data) => {
+  fs.readFile('../data/data.json', 'utf8', (err, data) => {
     if (!err) {
       cubes = JSON.parse(data)
     }
@@ -85,7 +85,7 @@ function loadCubes() {
   })
 }
 function saveCubes() {
-  fs.writeFile('../data.json', JSON.stringify(cubes), { encoding: 'utf8' }, () => {})
+  fs.writeFile('../data/data.json', JSON.stringify(cubes), { encoding: 'utf8' }, () => {})
 }
 
 loadCubes()
@@ -223,7 +223,7 @@ app.use(compression())
 
 // Routes
 app.get('/', (req, res, next) => {
-  let filePath = path.resolve('../app/index.html')
+  let filePath = path.resolve('../app/static/index.html')
 
   if (fs.existsSync(filePath)) {
     res.sendFile(filePath)
@@ -232,7 +232,7 @@ app.get('/', (req, res, next) => {
   }
 })
 app.get('/changelog.json', (req, res, next) => {
-  let filePath = path.resolve('../app/changelog.json')
+  let filePath = path.resolve('../data/changelog.json')
 
   if (fs.existsSync(filePath)) {
     res.sendFile(filePath)
@@ -240,7 +240,8 @@ app.get('/changelog.json', (req, res, next) => {
     next()
   }
 })
-app.use(express.static(path.resolve('../app/')))
+app.use(express.static(path.resolve('../app/static/')))
+app.use(express.static(path.resolve('../app/dist/')))
 app.all('*', (req, res) => {
   console.log(req.path, 'Not found')
   resError(res, 404)
