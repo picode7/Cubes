@@ -1,6 +1,10 @@
 ﻿# Cubes
 
-## Run
+## Run with Docker
+
+- `docker compose up`
+
+## Run Dev
 
 - `cd app`
 - `tsc`
