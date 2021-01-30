@@ -18,7 +18,7 @@ var Collision;
     }
     Collision.rect_rect = rect_rect;
     function circle_rect(cx, cy, cr, rx1, ry1, rx2, ry2) {
-        if (((rx1 - cr < cx) && (rx2 + cr > cx) && (ry1 - cr < cy) && (ry2 + cr > cy))) {
+        if (rx1 - cr < cx && rx2 + cr > cx && ry1 - cr < cy && ry2 + cr > cy) {
             if (cy < ry1) {
                 if (cx < rx1) {
                     return circle_point(cx, cy, cr, rx1, ry1);
@@ -43,7 +43,7 @@ var Collision;
     function circle_point(cx, cy, cr, px, py) {
         var dx = cx - px;
         var dy = cy - py;
-        return (dx * dx + dy * dy < cr * cr);
+        return dx * dx + dy * dy < cr * cr;
     }
     Collision.circle_point = circle_point;
 })(Collision || (Collision = {}));
@@ -60,19 +60,19 @@ var Connection = /** @class */ (function () {
         var _this = this;
         this.handshake = false;
         this.timeConnectAttempt = Date.now();
-        this.ws = new WebSocket((location.protocol == "https:" ? "wss" : "ws") + "://" + location.host + location.pathname);
+        this.ws = new WebSocket((location.protocol == 'https:' ? 'wss' : 'ws') + "://" + location.host + location.pathname);
         this.ws.onopen = function () {
-            game.chat.onmessage("connected to server");
+            game.chat.onmessage('connected to server');
             var message1 = {
-                type: 0 /* handshake */
+                type: 0 /* handshake */,
             };
-            var playerId = localStorage.getItem("playerId");
+            var playerId = localStorage.getItem('playerId');
             if (playerId != null)
                 message1.player = { id: playerId };
             _this.ws.send(JSON.stringify(message1));
             if (_this.wasConnected == false) {
                 var message2 = {
-                    type: 1 /* getCubes */
+                    type: 1 /* getCubes */,
                 };
                 _this.ws.send(JSON.stringify(message2));
                 _this.wasConnected = true;
@@ -84,8 +84,8 @@ var Connection = /** @class */ (function () {
             switch (message.type) {
                 case 0 /* handshake */:
                     game.world.player.id = message.player.id;
-                    document.getElementById("playerId").value = game.world.player.id;
-                    localStorage.setItem("playerId", game.world.player.id);
+                    document.getElementById('playerId').value = game.world.player.id;
+                    localStorage.setItem('playerId', game.world.player.id);
                     if (message.player.position) {
                         game.world.player.position = message.player.position;
                     }
@@ -145,7 +145,7 @@ var Connection = /** @class */ (function () {
                             if (game.world.players[i].id == message.player.id) {
                                 game.world.players[i].remove();
                                 game.world.players.splice(i, 1);
-                                game.chat.onmessage("player left");
+                                game.chat.onmessage('player left');
                                 break;
                             }
                         }
@@ -161,7 +161,7 @@ var Connection = /** @class */ (function () {
                         }
                         if (found == null) {
                             // add player
-                            game.chat.onmessage("player joined");
+                            game.chat.onmessage('player joined');
                             found = new Player(message.player.position, false);
                             found.id = message.player.id;
                             game.world.players.push(found);
@@ -177,7 +177,7 @@ var Connection = /** @class */ (function () {
         this.ws.onerror = function () { };
         this.ws.onclose = function (ev) {
             if (_this.connectedSinceAttempt)
-                game.chat.onmessage("disconnected from server");
+                game.chat.onmessage('disconnected from server');
             _this.reconnect();
             _this.connectedSinceAttempt = false;
         };
@@ -205,7 +205,7 @@ var Info = /** @class */ (function () {
     function Info() {
         var _this = this;
         var req = new XMLHttpRequest();
-        req.open("GET", "changelog.json");
+        req.open('GET', 'changelog.json');
         req.onreadystatechange = function () {
             if (req.readyState == 4 && req.status == 200) {
                 _this.changelog(JSON.parse(req.responseText));
@@ -214,29 +214,32 @@ var Info = /** @class */ (function () {
         req.send();
     }
     Info.prototype.changelog = function (logs) {
-        var oldVersion = localStorage.getItem("version");
-        var oldKnownIssues = localStorage.getItem("knownIssues");
-        var knownIssues = JSON.stringify(logs["known issues"]);
-        var oldWorkInProgress = localStorage.getItem("workInProgress");
-        var workInProgress = JSON.stringify(logs["work in progress"]);
-        logs.versions.sort(function (a, b) { return a.version > b.version ? -1 : 1; });
-        if (oldVersion == null || oldVersion < logs.versions[0].version
-            || oldKnownIssues != knownIssues
-            || oldWorkInProgress != workInProgress) {
-            document.getElementById("info").style.display = "block";
-            localStorage.setItem("version", logs.versions[0].version);
-            localStorage.setItem("knownIssues", knownIssues);
-            localStorage.setItem("workInProgress", workInProgress);
+        var oldVersion = localStorage.getItem('version');
+        var oldKnownIssues = localStorage.getItem('knownIssues');
+        var knownIssues = JSON.stringify(logs['known issues']);
+        var oldWorkInProgress = localStorage.getItem('workInProgress');
+        var workInProgress = JSON.stringify(logs['work in progress']);
+        logs.versions.sort(function (a, b) {
+            return a.version > b.version ? -1 : 1;
+        });
+        if (oldVersion == null ||
+            oldVersion < logs.versions[0].version ||
+            oldKnownIssues != knownIssues ||
+            oldWorkInProgress != workInProgress) {
+            document.getElementById('info').style.display = 'block';
+            localStorage.setItem('version', logs.versions[0].version);
+            localStorage.setItem('knownIssues', knownIssues);
+            localStorage.setItem('workInProgress', workInProgress);
         }
-        var elVersionLog = document.getElementById("versionlog");
+        var elVersionLog = document.getElementById('versionlog');
         var putContentInto = elVersionLog;
-        var elSpoilerContent = document.createElement("div");
-        document.getElementById("version").innerText = "Version " + logs.versions[0].version + (workInProgress.length > 0 ? " work in progress" : "");
-        headList(oldKnownIssues != knownIssues ? elVersionLog : elSpoilerContent, "known issues", logs["known issues"]);
-        headList(oldWorkInProgress != workInProgress ? elVersionLog : elSpoilerContent, "work in progress", logs["work in progress"]);
+        var elSpoilerContent = document.createElement('div');
+        document.getElementById('version').innerText = "Version " + logs.versions[0].version + (workInProgress.length > 0 ? ' work in progress' : '');
+        headList(oldKnownIssues != knownIssues ? elVersionLog : elSpoilerContent, 'known issues', logs['known issues']);
+        headList(oldWorkInProgress != workInProgress ? elVersionLog : elSpoilerContent, 'work in progress', logs['work in progress']);
         for (var _i = 0, _a = logs.versions; _i < _a.length; _i++) {
             var version = _a[_i];
-            // put content into spoler if it's not new
+            // put content into spoiler if it's not new
             if (oldVersion >= version.version) {
                 putContentInto = elSpoilerContent;
             }
@@ -244,20 +247,23 @@ var Info = /** @class */ (function () {
         }
         if (elSpoilerContent.childElementCount) {
             var spoiler_1 = elementFromHTML("<div style=\"cursor:pointer;color:lightblue\">Show Updatelog</div>");
-            spoiler_1.onclick = function () { elSpoilerContent.style.display = "block"; spoiler_1.style.display = "none"; };
+            spoiler_1.onclick = function () {
+                elSpoilerContent.style.display = 'block';
+                spoiler_1.style.display = 'none';
+            };
             elVersionLog.appendChild(spoiler_1);
-            elSpoilerContent.style.display = "none";
+            elSpoilerContent.style.display = 'none';
             elVersionLog.appendChild(elSpoilerContent);
         }
         function headList(parent, title, list) {
-            var elTitle = document.createElement("h3");
+            var elTitle = document.createElement('h3');
             elTitle.innerText = title;
             parent.appendChild(elTitle);
-            var elList = document.createElement("ul");
+            var elList = document.createElement('ul');
             parent.appendChild(elList);
             for (var _i = 0, list_1 = list; _i < list_1.length; _i++) {
                 var log = list_1[_i];
-                var elItem = document.createElement("li");
+                var elItem = document.createElement('li');
                 elItem.innerText = log;
                 elList.appendChild(elItem);
             }
@@ -272,7 +278,7 @@ var FPS = /** @class */ (function () {
     }
     FPS.prototype.addFrame = function () {
         var timeNow = performance.now();
-        this.fps = this.fps / 10 * 9 + 1000 / (timeNow - this.timeLastFrame) / 10 * 1;
+        this.fps = (this.fps / 10) * 9 + (1000 / (timeNow - this.timeLastFrame) / 10) * 1;
         this.timeLastFrame = timeNow;
     };
     return FPS;
@@ -280,13 +286,13 @@ var FPS = /** @class */ (function () {
 var Chat = /** @class */ (function () {
     function Chat() {
         var _this = this;
-        this.elC = document.getElementById("chat");
-        this.elCL = document.getElementById("chatLog");
-        this.elCI = document.getElementById("chatInput");
-        this.elCS = document.getElementById("chatSend");
+        this.elC = document.getElementById('chat');
+        this.elCL = document.getElementById('chatLog');
+        this.elCI = document.getElementById('chatInput');
+        this.elCS = document.getElementById('chatSend');
         this.elCS.onclick = function () { return _this.send(); };
         this.elCI.onblur = function () { return _this.show(); };
-        window.addEventListener("keydown", function (e) {
+        window.addEventListener('keydown', function (e) {
             if (e.keyCode == 13 /* ENTER */) {
                 if (_this.elCI !== document.activeElement) {
                     _this.show();
@@ -301,24 +307,24 @@ var Chat = /** @class */ (function () {
     }
     Chat.prototype.show = function () {
         var _this = this;
-        this.elC.style.display = "block";
+        this.elC.style.display = 'block';
         clearTimeout(this.hideTimeout);
         this.hideTimeout = setTimeout(function () { return _this.hide(); }, 5000);
     };
     Chat.prototype.hide = function () {
         if (this.elCI == document.activeElement)
             return;
-        this.elC.style.display = "none";
+        this.elC.style.display = 'none';
         this.elCI.blur();
     };
     Chat.prototype.getCurrentInput = function () {
         var text = this.elCI.value.trim();
-        this.elCI.value = "";
+        this.elCI.value = '';
         return text;
     };
     Chat.prototype.send = function () {
         var txt = this.getCurrentInput();
-        if (txt == "")
+        if (txt == '')
             return;
         this.onmessage(txt, true);
     };
@@ -326,13 +332,13 @@ var Chat = /** @class */ (function () {
         if (self === void 0) { self = false; }
         this.show();
         // append messages
-        this.elCL.appendChild(elementFromHTML("<div" + (self ? " style=\"color:#ccc\"" : "") + ">[" + new Date().toLocaleTimeString() + "] " + text + "</div>"));
+        this.elCL.appendChild(elementFromHTML("<div" + (self ? " style=\"color:#ccc\"" : '') + ">[" + new Date().toLocaleTimeString() + "] " + text + "</div>"));
         // scroll down
         this.elCL.scrollTop = this.elCL.scrollHeight;
         if (self) {
             game.connection.sendMessage({
                 type: 5 /* chat */,
-                text: text
+                text: text,
             });
         }
     };
@@ -342,32 +348,25 @@ var GUI = /** @class */ (function () {
     function GUI() {
         var _this = this;
         this.layer = 0 /* none */;
-        this.selectActionsText = [
-            "Stone",
-            "Mono",
-            "Glas",
-            "Remove Block",
-            "Pick Color",
-            "Teleport",
-        ];
+        this.selectActionsText = ['Stone', 'Mono', 'Glas', 'Remove Block', 'Pick Color', 'Teleport'];
         this.selectBlockElement = [];
         this.selectedBlockIndex = 0;
         this.selectedColor = null;
-        this.elMenu = document.getElementById("menu");
+        this.elMenu = document.getElementById('menu');
         // Pointer
         this.elPointer = elementFromHTML("<div style=\"position:absolute; left:50%; top:50%; height:2px; width:2px; background:red; pointer-events:none\"></div>");
         document.body.appendChild(this.elPointer);
         game.pointer.onchange.register(function (locked) {
-            if (locked == false && _this.layer == 2 /* ingame */)
+            if (locked == false && _this.layer == 2 /* inGame */)
                 _this.setLayer(1 /* menu */);
         });
         // Debug Info
         this.elDebugInfo = document.body.appendChild(elementFromHTML("<div style=\"position:absolute; left:0; top:0; width:200px; color: white; font-size:10pt;font-family: Consolas;pointer-events:none\"></div>"));
-        this.elDebugInfo.style.display = game.options.debugInfo ? "block" : "none";
+        this.elDebugInfo.style.display = game.options.debugInfo ? 'block' : 'none';
         // Selector
-        var el = document.getElementById("guiBlocks");
+        var el = document.getElementById('guiBlocks');
         for (var i = 0, max = this.selectActionsText.length; i < max; ++i) {
-            var el2 = document.createElement("div");
+            var el2 = document.createElement('div');
             el2.textContent = this.selectActionsText[i].toString();
             el.appendChild(el2);
             this.selectBlockElement[i] = el2;
@@ -377,21 +376,21 @@ var GUI = /** @class */ (function () {
         // Options
         this.updateOptionsGUI();
         this.setLayer(1 /* menu */);
-        document.getElementById("continue").onclick = function () {
-            _this.setLayer(2 /* ingame */);
+        document.getElementById('continue').onclick = function () {
+            _this.setLayer(2 /* inGame */);
             game.pointer.el.requestPointerLock();
         };
         // Input
-        var lastWheeley = 0;
-        window.addEventListener("wheel", function (event) {
-            if (event.timeStamp - lastWheeley > 50) {
+        var lastWheely = 0;
+        window.addEventListener('wheel', function (event) {
+            if (event.timeStamp - lastWheely > 50) {
                 _this.mousewheel(event);
-                lastWheeley = event.timeStamp;
+                lastWheely = event.timeStamp;
             }
         });
         var _loop_1 = function (i) {
             game.keyboard.key(i.toString()).signals.down.register(function (key) {
-                if (_this.layer != 2 /* ingame */)
+                if (_this.layer != 2 /* inGame */)
                     return;
                 _this.setAction(i - 1);
             });
@@ -399,26 +398,26 @@ var GUI = /** @class */ (function () {
         for (var i = 1; i <= 9; ++i) {
             _loop_1(i);
         }
-        game.keyboard.key("0").signals.down.register(function (key) {
-            if (_this.layer != 2 /* ingame */)
+        game.keyboard.key('0').signals.down.register(function (key) {
+            if (_this.layer != 2 /* inGame */)
                 return;
             _this.setAction(10 - 1);
         });
-        game.keyboard.key("escape").signals.down.register(function () {
-            //if (this.layer == GUI_LAYER.menu) this.setLayer(GUI_LAYER.ingame)
-            //else if (this.layer == GUI_LAYER.ingame) this.setLayer(GUI_LAYER.menu)
+        game.keyboard.key('escape').signals.down.register(function () {
+            //if (this.layer == GUI_LAYER.menu) this.setLayer(GUI_LAYER.inGame)
+            //else if (this.layer == GUI_LAYER.inGame) this.setLayer(GUI_LAYER.menu)
         });
     }
     GUI.prototype.setLayer = function (layer) {
         switch (this.layer) {
-            case 2 /* ingame */:
+            case 2 /* inGame */:
                 {
                     switch (layer) {
                         case 1 /* menu */:
                             {
                                 // show menu
-                                this.elMenu.style.display = "block";
-                                this.elPointer.style.display = "none";
+                                this.elMenu.style.display = 'block';
+                                this.elPointer.style.display = 'none';
                                 this.layer = layer;
                             }
                             break;
@@ -428,11 +427,11 @@ var GUI = /** @class */ (function () {
             case 1 /* menu */:
                 {
                     switch (layer) {
-                        case 2 /* ingame */:
+                        case 2 /* inGame */:
                             {
                                 // hide menu
-                                this.elMenu.style.display = "none";
-                                this.elPointer.style.display = "block";
+                                this.elMenu.style.display = 'none';
+                                this.elPointer.style.display = 'block';
                                 this.layer = layer;
                             }
                             break;
@@ -445,8 +444,8 @@ var GUI = /** @class */ (function () {
                         case 1 /* menu */:
                             {
                                 // show menu
-                                this.elMenu.style.display = "block";
-                                this.elPointer.style.display = "none";
+                                this.elMenu.style.display = 'block';
+                                this.elPointer.style.display = 'none';
                                 this.layer = layer;
                             }
                             break;
@@ -456,22 +455,30 @@ var GUI = /** @class */ (function () {
         }
     };
     GUI.prototype.updateOptionsGUI = function () {
-        document.getElementById("settings_aa").checked = game.options.antialias;
-        document.getElementById("settings_debug").checked = game.options.debugInfo;
-        document.getElementById("settings_fog").checked = game.options.fog;
-        document.getElementById("settings_wireframe").checked = game.options.wireframe;
-        document.getElementById("settings_renderScale").selectedIndex = [25, 50, 75, 100, 150, 200].indexOf(game.options.renderScale);
+        ;
+        document.getElementById('settings_aa').checked = game.options.antialias;
+        document.getElementById('settings_debug').checked = game.options.debugInfo;
+        document.getElementById('settings_fog').checked = game.options.fog;
+        document.getElementById('settings_wireframe').checked = game.options.wireframe;
+        document.getElementById('settings_renderScale').selectedIndex = [
+            25,
+            50,
+            75,
+            100,
+            150,
+            200,
+        ].indexOf(game.options.renderScale);
     };
     GUI.prototype.updateOptions = function (reload) {
         if (reload === void 0) { reload = false; }
-        game.options.antialias = document.getElementById("settings_aa").checked;
-        game.options.debugInfo = document.getElementById("settings_debug").checked;
-        game.options.fog = document.getElementById("settings_fog").checked;
-        game.options.wireframe = document.getElementById("settings_wireframe").checked;
-        game.options.renderScale = [25, 50, 75, 100, 150, 200][document.getElementById("settings_renderScale").selectedIndex];
-        localStorage.setItem("options", JSON.stringify(game.options));
+        game.options.antialias = document.getElementById('settings_aa').checked;
+        game.options.debugInfo = document.getElementById('settings_debug').checked;
+        game.options.fog = document.getElementById('settings_fog').checked;
+        game.options.wireframe = document.getElementById('settings_wireframe').checked;
+        game.options.renderScale = [25, 50, 75, 100, 150, 200][document.getElementById('settings_renderScale').selectedIndex];
+        localStorage.setItem('options', JSON.stringify(game.options));
         // Debug Info
-        this.elDebugInfo.style.display = game.options.debugInfo ? "block" : "none";
+        this.elDebugInfo.style.display = game.options.debugInfo ? 'block' : 'none';
         // Wireframe
         game.world.superCluster.showWireGeom(game.options.debugInfo);
         game.world.createMashup();
@@ -483,17 +490,19 @@ var GUI = /** @class */ (function () {
             game.scene.fog = null;
         }
         // Render Scale
-        game.renderer.setPixelRatio(game.options.renderScale / 100 * window.devicePixelRatio);
+        game.renderer.setPixelRatio((game.options.renderScale / 100) * window.devicePixelRatio);
         if (reload)
             location.reload();
     };
     GUI.prototype.mousewheel = function (e) {
-        if (this.layer != 2 /* ingame */)
+        if (this.layer != 2 /* inGame */)
             return;
-        if (e.deltaY > 0) { // down
+        if (e.deltaY > 0) {
+            // down
             this.selectNextAction(false);
         }
-        else if (e.deltaY < 0) { // up
+        else if (e.deltaY < 0) {
+            // up
             this.selectNextAction(true);
         }
     };
@@ -502,7 +511,8 @@ var GUI = /** @class */ (function () {
             return;
         this.selectBlockElement[this.selectedBlockIndex].textContent = this.selectActionsText[this.selectedBlockIndex].toString();
         this.selectedBlockIndex = i;
-        this.selectBlockElement[this.selectedBlockIndex].textContent = this.selectActionsText[this.selectedBlockIndex].toString() + " <";
+        this.selectBlockElement[this.selectedBlockIndex].textContent =
+            this.selectActionsText[this.selectedBlockIndex].toString() + ' <';
     };
     GUI.prototype.selectNextAction = function (directionUp) {
         var i;
@@ -522,23 +532,23 @@ var GUI = /** @class */ (function () {
     GUI.prototype.setColor = function (color) {
         if (color === void 0) { color = null; }
         this.selectedColor = color;
-        var el = document.getElementById("guiColor");
+        var el = document.getElementById('guiColor');
         if (this.selectedColor == null) {
             el.style.backgroundColor = "";
             el.textContent = "random";
-            el.style.color = "white";
+            el.style.color = 'white';
         }
         else {
             el.style.backgroundColor = "#" + this.selectedColor.getHexString();
             el.textContent = "#" + this.selectedColor.getHexString();
-            el.style.color = this.selectedColor.getHSL().l > 0.6 ? "black" : "white";
+            el.style.color = this.selectedColor.getHSL().l > 0.6 ? 'black' : 'white';
         }
     };
     GUI.prototype.getSelectedColor = function () {
         return this.selectedColor;
     };
     GUI.prototype.animate = function () {
-        document.getElementById("guiOther").innerHTML = "Gold: " + game.world.player.inventory.gold;
+        document.getElementById('guiOther').innerHTML = "Gold: " + game.world.player.inventory.gold;
         function f(n) {
             return (n >= 0 ? '+' : '') + n.toFixed(10);
         }
@@ -549,10 +559,10 @@ var GUI = /** @class */ (function () {
                 ("Players: " + (game.world.players.length + 1) + "<br/>") +
                 ("Cubes: " + game.world.cubes.length + "<br/>") +
                 ("Clusters: " + game.world.superCluster.clusters.length + "<br/>") +
-                ("Pointer: " + (game.pointer.locked ? "locked" : "not tracking") + "<br/>") +
+                ("Pointer: " + (game.pointer.locked ? 'locked' : 'not tracking') + "<br/>") +
                 ("Position:<br>&nbsp;\nx " + f(game.world.player.position.x) + "<br>&nbsp;\ny " + f(game.world.player.position.y) + "<br>&nbsp;\nz " + f(game.world.player.position.z) + "<br/>") +
                 ("Looking:<br>&nbsp;\nx " + f(game.camera.getWorldDirection().x) + "<br>&nbsp;\ny " + f(game.camera.getWorldDirection().y) + "<br>&nbsp;\nz " + f(game.camera.getWorldDirection().z) + "<br/>") +
-                "";
+                '';
     };
     return GUI;
 }());
@@ -577,9 +587,13 @@ var Input;
             var _this = this;
             this._keys = {};
             this.keyOrder = 0;
-            window.addEventListener("keydown", function (e) { return _this.onkeydown(e); });
-            window.addEventListener("keyup", function (e) { return _this.onkeyup(e); });
-            window.addEventListener("blur", function () { return _this.blur(); });
+            window.addEventListener('keydown', function (e) {
+                return _this.onkeydown(e);
+            });
+            window.addEventListener('keyup', function (e) {
+                return _this.onkeyup(e);
+            });
+            window.addEventListener('blur', function () { return _this.blur(); });
         }
         Keyboard.prototype.key = function (key) {
             if (this._keys[key] === undefined) {
@@ -588,21 +602,22 @@ var Input;
                     signals: {
                         down: new Signal(),
                         up: new Signal(),
-                    }
+                    },
                 };
             }
             return this._keys[key];
         };
         Keyboard.prototype.onkeydown = function (e) {
-            if (game.gui.layer == 2 /* ingame */ &&
-                document.getElementById("chatInput") !== document.activeElement && e.key.toLowerCase() !== "enter") {
+            if (game.gui.layer == 2 /* inGame */ &&
+                document.getElementById('chatInput') !== document.activeElement &&
+                e.key.toLowerCase() !== 'enter') {
                 var key = this.key(e.key.toLowerCase());
                 var t = key.pressed;
                 key.pressed = ++this.keyOrder; // overflow after 285M years at 1 hit per seconds
                 if (t == 0)
                     key.signals.down.send(key);
                 e.preventDefault();
-                if (e.key.toLowerCase() == "t")
+                if (e.key.toLowerCase() == 't')
                     game.traceOn = !game.traceOn;
             }
             return false;
@@ -619,7 +634,7 @@ var Input;
             }
         };
         Keyboard.prototype.onkeyup = function (e) {
-            // Key might have been down without this window beeing in focus, 
+            // Key might have been down without this window being in focus,
             // so ignore if it goes without going down while in focus
             var key = this.key(e.key.toLowerCase());
             var t = key.pressed;
@@ -653,17 +668,17 @@ var Input;
         PointerLock.prototype.pointerlockchange = function () {
             if (document.pointerLockElement === this.el && this.locked == false) {
                 this.locked = true;
-                document.addEventListener("mousemove", this.callback, false);
+                document.addEventListener('mousemove', this.callback, false);
                 this.onchange.send(this.locked);
             }
             else if (document.pointerLockElement !== this.el && this.locked == true) {
                 this.locked = false;
-                document.removeEventListener("mousemove", this.callback, false);
+                document.removeEventListener('mousemove', this.callback, false);
                 this.onchange.send(this.locked);
             }
         };
         PointerLock.prototype.mousemove = function (e) {
-            if (game.gui.layer != 2 /* ingame */)
+            if (game.gui.layer != 2 /* inGame */)
                 return;
             // https://bugs.chromium.org/p/chromium/issues/detail?id=781182
             if (Math.abs(e.movementX) > 200 || Math.abs(e.movementY) > 200)
@@ -671,12 +686,12 @@ var Input;
             this.moveCamera(e.movementX, e.movementY);
         };
         PointerLock.prototype.updateLonLat = function () {
-            this.lon = 360 - (THREE.Math.radToDeg(game.camera.rotation.y) + 180 + 270) % 360;
-            this.lat = THREE.Math.radToDeg(Math.asin(game.camera.rotation.x / Math.PI * 2));
+            this.lon = 360 - ((THREE.Math.radToDeg(game.camera.rotation.y) + 180 + 270) % 360);
+            this.lat = THREE.Math.radToDeg(Math.asin((game.camera.rotation.x / Math.PI) * 2));
             this.moveCamera(0, 0);
         };
         PointerLock.prototype.moveCamera = function (deltaX, deltaY) {
-            var speed = .2;
+            var speed = 0.2;
             this.lon += deltaX * speed; // 0 to 360 roundview
             this.lat -= deltaY * speed; // -90 to 90
             this.lat = Math.max(-89.99999, Math.min(89.99999, this.lat));
@@ -687,7 +702,7 @@ var Input;
         return PointerLock;
     }());
     Input.PointerLock = PointerLock;
-    document.createElementNS("http://www.w3.org/2000/svg", "a");
+    document.createElementNS('http://www.w3.org/2000/svg', 'a');
 })(Input || (Input = {}));
 /**
  * Check if localStorage is supported                       const isSupported: boolean
@@ -696,7 +711,7 @@ var Input;
  * Get the maximum amount of space in localStorage          function getMaximumSpace(): number
  * Get the used space in localStorage                       function getUsedSpace(): number
  * Get the used space of an item in localStorage            function getItemUsedSpace(): number
- * Backup Assosiative Array                                 interface Backup
+ * Backup Associative Array                                 interface Backup
  * Get a Backup of localStorage                             function getBackup(): Backup
  * Apply a Backup to localStorage                           function applyBackup(backup: Backup, fClear: boolean = true, fOverwriteExisting: boolean = true)
  * Dump all information of localStorage in the console      function consoleInfo(fShowMaximumSize: boolean = false)
@@ -709,24 +724,24 @@ var LocalStorage;
  * Get the maximum amount of space in localStorage          function getMaximumSpace(): number
  * Get the used space in localStorage                       function getUsedSpace(): number
  * Get the used space of an item in localStorage            function getItemUsedSpace(): number
- * Backup Assosiative Array                                 interface Backup
+ * Backup Associative Array                                 interface Backup
  * Get a Backup of localStorage                             function getBackup(): Backup
  * Apply a Backup to localStorage                           function applyBackup(backup: Backup, fClear: boolean = true, fOverwriteExisting: boolean = true)
  * Dump all information of localStorage in the console      function consoleInfo(fShowMaximumSize: boolean = false)
  */
 (function (LocalStorage) {
     /**
-     * Flag set true if the Browser supports localStorage, widthout affecting it
+     * Flag set true if the Browser supports localStorage, without affecting it
      */
     LocalStorage.isSupported = (function () {
         try {
-            var itemBackup = localStorage.getItem("");
-            localStorage.removeItem("");
-            localStorage.setItem("", itemBackup);
+            var itemBackup = localStorage.getItem('');
+            localStorage.removeItem('');
+            localStorage.setItem('', itemBackup);
             if (itemBackup === null)
-                localStorage.removeItem("");
+                localStorage.removeItem('');
             else
-                localStorage.setItem("", itemBackup);
+                localStorage.setItem('', itemBackup);
             return true;
         }
         catch (e) {
@@ -746,16 +761,16 @@ var LocalStorage;
      * Might be slow !!!
      */
     function getRemainingSpace() {
-        var itemBackup = localStorage.getItem("");
+        var itemBackup = localStorage.getItem('');
         var increase = true;
-        var data = "1";
-        var totalData = "";
-        var trytotalData = "";
+        var data = '1';
+        var totalData = '';
+        var tryTotalData = '';
         while (true) {
             try {
-                trytotalData = totalData + data;
-                localStorage.setItem("", trytotalData);
-                totalData = trytotalData;
+                tryTotalData = totalData + data;
+                localStorage.setItem('', tryTotalData);
+                totalData = tryTotalData;
                 if (increase)
                     data += data;
             }
@@ -768,9 +783,9 @@ var LocalStorage;
             }
         }
         if (itemBackup === null)
-            localStorage.removeItem("");
+            localStorage.removeItem('');
         else
-            localStorage.setItem("", itemBackup);
+            localStorage.setItem('', itemBackup);
         return totalData.length;
     }
     LocalStorage.getRemainingSpace = getRemainingSpace;
@@ -863,11 +878,11 @@ var LocalStorage;
             size += key.length + value.length;
             amount++;
         }
-        console.log("Total entries:", amount);
-        console.log("Total size:", size);
+        console.log('Total entries:', amount);
+        console.log('Total size:', size);
         if (fShowMaximumSize === true) {
             var maxSize = getMaximumSpace();
-            console.log("Total size:", maxSize);
+            console.log('Total size:', maxSize);
         }
     }
     LocalStorage.consoleInfo = consoleInfo;
@@ -882,7 +897,7 @@ var LocalStorage;
     console.log(JSON.stringify(backup))                             // this is how the backup looks like
     var usedSpace = LocalStorage.getUsedSpace()                     // amount of space used right now
     console.log("Used Space:", usedSpace)
-    var maxSpace = LocalStorage.getMaximumSpace()                   // amount of maximum space aviable
+    var maxSpace = LocalStorage.getMaximumSpace()                   // amount of maximum space available
     console.log("Maximum Space:", maxSpace)
     var remSpace = LocalStorage.getRemainingSpace()                 // amount of remaining space
     console.log("Remaining Space:", remSpace)
@@ -893,11 +908,11 @@ var LocalStorage;
     LocalStorage.applyBackup(backup)                                // but we have a backup, restore it!
     LocalStorage.consoleInfo()                                      // show all the info we have, see the backup worked 😊
 
-*/ 
+*/
 var Player = /** @class */ (function () {
-    function Player(position, controled) {
+    function Player(position, controlled) {
         var _this = this;
-        this.controled = controled;
+        this.controlled = controlled;
         this.fast = false;
         this.walkSpeed = 0;
         this.walkSideSpeed = 0;
@@ -915,40 +930,40 @@ var Player = /** @class */ (function () {
         this.mesh = new THREE.Mesh(geometry, material);
         game.scene.add(this.mesh);
         this.spawn();
-        if (controled) {
-            game.keyboard.key("shift").signals.down.register(function () {
-                if (game.gui.layer != 2 /* ingame */)
+        if (controlled) {
+            game.keyboard.key('shift').signals.down.register(function () {
+                if (game.gui.layer != 2 /* inGame */)
                     return;
                 _this.fast = !_this.fast;
             });
             var fb = function () {
-                if (game.gui.layer != 2 /* ingame */)
+                if (game.gui.layer != 2 /* inGame */)
                     return;
-                if (game.keyboard.key("w").pressed > 0 || game.keyboard.key("s").pressed > 0) {
-                    _this.walkSpeed = 6 / 3.6 * (game.keyboard.key("w").pressed < game.keyboard.key("s").pressed ? -1 : 1);
+                if (game.keyboard.key('w').pressed > 0 || game.keyboard.key('s').pressed > 0) {
+                    _this.walkSpeed = (6 / 3.6) * (game.keyboard.key('w').pressed < game.keyboard.key('s').pressed ? -1 : 1);
                 }
                 else {
                     _this.walkSpeed = 0;
                 }
             };
             var lr = function () {
-                if (game.gui.layer != 2 /* ingame */)
+                if (game.gui.layer != 2 /* inGame */)
                     return;
-                if (game.keyboard.key("a").pressed > 0 || game.keyboard.key("d").pressed > 0) {
-                    _this.walkSideSpeed = 6 / 3.6 * (game.keyboard.key("d").pressed < game.keyboard.key("a").pressed ? -1 : 1);
+                if (game.keyboard.key('a').pressed > 0 || game.keyboard.key('d').pressed > 0) {
+                    _this.walkSideSpeed = (6 / 3.6) * (game.keyboard.key('d').pressed < game.keyboard.key('a').pressed ? -1 : 1);
                 }
                 else {
                     _this.walkSideSpeed = 0;
                 }
             };
-            game.keyboard.key("w").signals.down.register(fb);
-            game.keyboard.key("w").signals.up.register(fb);
-            game.keyboard.key("s").signals.down.register(fb);
-            game.keyboard.key("s").signals.up.register(fb);
-            game.keyboard.key("d").signals.down.register(lr);
-            game.keyboard.key("d").signals.up.register(lr);
-            game.keyboard.key("a").signals.down.register(lr);
-            game.keyboard.key("a").signals.up.register(lr);
+            game.keyboard.key('w').signals.down.register(fb);
+            game.keyboard.key('w').signals.up.register(fb);
+            game.keyboard.key('s').signals.down.register(fb);
+            game.keyboard.key('s').signals.up.register(fb);
+            game.keyboard.key('d').signals.down.register(lr);
+            game.keyboard.key('d').signals.up.register(lr);
+            game.keyboard.key('a').signals.down.register(lr);
+            game.keyboard.key('a').signals.up.register(lr);
         }
     }
     Player.prototype.updatePosition = function () {
@@ -980,15 +995,15 @@ var Player = /** @class */ (function () {
         game.camera.position.x = this.mesh.position.x;
         game.camera.position.y = this.mesh.position.y + 0.25;
         game.camera.position.z = this.mesh.position.z;
-        if (this.prevPosition.x != this.position.x
-            || this.prevPosition.y != this.position.y
-            || this.prevPosition.z != this.position.z) {
+        if (this.prevPosition.x != this.position.x ||
+            this.prevPosition.y != this.position.y ||
+            this.prevPosition.z != this.position.z) {
             game.connection.sendMessage({
                 type: 4 /* playerUpdate */,
                 player: {
                     id: this.id,
-                    position: this.position
-                }
+                    position: this.position,
+                },
             });
             if (game.traceOn)
                 new SpriteObject(this.position);
@@ -998,15 +1013,15 @@ var Player = /** @class */ (function () {
         }
     };
     Player.prototype.step = function (deltaTime) {
-        if (this.controled && game.world.cubes.length) {
-            framePerformance.start("player step");
-            var collisionRadius = Math.sqrt(0.5 * 0.5 / 2);
+        if (this.controlled && game.world.cubes.length) {
+            framePerformance.start('player step');
+            var collisionRadius = Math.sqrt((0.5 * 0.5) / 2);
             this.orientation.x = game.camera.rotation.x;
             this.orientation.y = game.camera.rotation.y;
             this.orientation.z = game.camera.rotation.z;
             var facingDirection = this.orientation.y;
-            if (game.gui.layer == 2 /* ingame */) {
-                if (game.keyboard.key(" ").pressed > 0) {
+            if (game.gui.layer == 2 /* inGame */) {
+                if (game.keyboard.key(' ').pressed > 0) {
                     if (this.velocityY == 0)
                         this.velocityY = 9.81 / 2;
                 }
@@ -1040,7 +1055,7 @@ var Player = /** @class */ (function () {
                 if (this.walkSideSpeed < 0)
                     walkingDirection -= Math.PI / 4;
             }
-            var radians = walkingDirection > 0 ? walkingDirection : (2 * Math.PI) + walkingDirection;
+            var radians = walkingDirection > 0 ? walkingDirection : 2 * Math.PI + walkingDirection;
             // Wanted movement
             var deltaX = speed * Math.sin(-radians) * deltaTime;
             var deltaY = this.velocityY * deltaTime;
@@ -1061,7 +1076,7 @@ var Player = /** @class */ (function () {
                     var a = cube.position.y + 1 > this.position.y;
                     var b = cube.position.y < this.position.y + 2;
                     if (a && b) {
-                        // only collide if it wasn't allready colliding previously
+                        // only collide if it wasn't all ready colliding previously
                         if (!Collision.circle_rect(this.position.x, this.position.z, collisionRadius, cube.position.x, cube.position.z, cube.position.x + 1, cube.position.z + 1)) {
                             deltaX = 0;
                             deltaZ = 0;
@@ -1069,7 +1084,7 @@ var Player = /** @class */ (function () {
                     }
                     // Check from top down
                     if (this.position.y >= cube.position.y + 1 && this.position.y + deltaY < cube.position.y + 1) {
-                        deltaY = (cube.position.y + 1) - this.position.y;
+                        deltaY = cube.position.y + 1 - this.position.y;
                         this.velocityY = 0;
                     }
                 }
@@ -1088,15 +1103,15 @@ var Player = /** @class */ (function () {
                     this.inventory.gold++;
                 }
             }
-            framePerformance.stop("player step");
+            framePerformance.stop('player step');
         }
-        if (this.prevPosition.x != this.position.x
-            || this.prevPosition.y != this.position.y
-            || this.prevPosition.z != this.position.z
-            || this.prevOrientation.x != this.orientation.x
-            || this.prevOrientation.y != this.orientation.y
-            || this.prevOrientation.z != this.orientation.z) {
-            if (this.controled) {
+        if (this.prevPosition.x != this.position.x ||
+            this.prevPosition.y != this.position.y ||
+            this.prevPosition.z != this.position.z ||
+            this.prevOrientation.x != this.orientation.x ||
+            this.prevOrientation.y != this.orientation.y ||
+            this.prevOrientation.z != this.orientation.z) {
+            if (this.controlled) {
                 game.connection.sendMessage({
                     type: 4 /* playerUpdate */,
                     player: {
@@ -1104,7 +1119,7 @@ var Player = /** @class */ (function () {
                         position: this.position,
                         orientation: this.orientation,
                         inventory: this.inventory,
-                    }
+                    },
                 });
             }
             if (game.traceOn)
@@ -1167,13 +1182,13 @@ var Game = /** @class */ (function () {
         this.meshShowing = false;
         this.stepPreviousTime = 0;
         game = this;
-        var lsStringOptions = localStorage.getItem("options");
+        var lsStringOptions = localStorage.getItem('options');
         if (lsStringOptions !== null) {
             var lsOptions = JSON.parse(lsStringOptions);
             this.options = lsOptions;
         }
         if (Input.PointerLock.isSupported == false)
-            alert("Browser not supported!");
+            alert('Browser not supported!');
         // Scene
         this.scene = new THREE.Scene();
         this.scene.background = new THREE.Color(0xc9e2ff);
@@ -1196,13 +1211,13 @@ var Game = /** @class */ (function () {
         this.world = new World();
         this.world.init();
         // Events
-        window.addEventListener("resize", function () { return _this.onResize(); });
+        window.addEventListener('resize', function () { return _this.onResize(); });
         this.pointer = new Input.PointerLock(this.renderer.domElement);
         this.pointer.moveCamera(0, 0);
-        window.addEventListener("mousedown", function (event) {
+        window.addEventListener('mousedown', function (event) {
             _this.onclick(event);
         });
-        window.addEventListener("mouseup", function (event) {
+        window.addEventListener('mouseup', function (event) {
             _this.mouseup(event);
         });
         //window.onbeforeunload = function () { // Prevent Ctrl+W ... Chrome!
@@ -1250,19 +1265,19 @@ var Game = /** @class */ (function () {
         }
     };
     Game.prototype.onclick = function (e) {
-        if (this.gui.layer != 2 /* ingame */)
+        if (this.gui.layer != GUI_LAYER.ingame)
             return;
         if (e.button != 0)
             return;
         new TextCanvasObject();
         var action = this.gui.getSelectedAction();
         switch (action) {
-            case "Pick Color":
+            case 'Pick Color':
                 {
                     this.copyColor();
                 }
                 break;
-            case "Teleport":
+            case 'Teleport':
                 {
                     var pos = game.getRayCubePos(true);
                     if (pos == null)
@@ -1273,7 +1288,7 @@ var Game = /** @class */ (function () {
                     game.world.player.teleport(pos);
                 }
                 break;
-            case "Remove Block":
+            case 'Remove Block':
                 {
                     var pos = this.getRayCubePos(true);
                     if (pos == null)
@@ -1300,14 +1315,14 @@ var Game = /** @class */ (function () {
                     // Block
                     var blockType = void 0;
                     switch (action) {
-                        case "Stone":
+                        case 'Stone':
                             blockType = 0 /* stone */;
                             break;
-                        case "Mono":
+                        case 'Mono':
                             blockType = 2 /* mono */;
                             break;
-                        case "Glas":
-                            blockType = 1 /* glas */;
+                        case 'Glas':
+                            blockType = CUBE_TYPE.glas;
                             break;
                     }
                     var pos = this.getRayCubePos(false);
@@ -1338,7 +1353,7 @@ var Game = /** @class */ (function () {
     };
     Game.prototype.getRayCubePos = function (alt) {
         var maxDistance = 20;
-        framePerformance.start("raytrace");
+        framePerformance.start('raytrace');
         this.raycaster.set(this.camera.position, this.camera.getWorldDirection());
         var meshes = [];
         for (var _i = 0, _a = this.world.superCluster.clusters; _i < _a.length; _i++) {
@@ -1346,12 +1361,12 @@ var Game = /** @class */ (function () {
             meshes.push(cluster.mashup);
         }
         if (meshes.length == 0) {
-            framePerformance.stop("raytrace");
+            framePerformance.stop('raytrace');
             return null;
         }
         var intersects = this.raycaster.intersectObjects(meshes);
         if (intersects.length == 0) {
-            framePerformance.stop("raytrace");
+            framePerformance.stop('raytrace');
             return null;
         }
         var intersect = intersects[0];
@@ -1381,36 +1396,35 @@ var Game = /** @class */ (function () {
         var v = intersect.point.clone().add(n);
         var cutoff = function (n) {
             return Math.round(n * 100000000) / 100000000;
-        }; // floating point pression fix for flooring
+        }; // floating point precision fix for flooring
         v.x = cutoff(v.x);
         v.y = cutoff(v.y);
         v.z = cutoff(v.z);
         var result = v.floor();
         if (this.camera.position.distanceTo(result) > maxDistance) {
-            framePerformance.stop("raytrace");
+            framePerformance.stop('raytrace');
             return null;
         }
-        framePerformance.stop("raytrace");
+        framePerformance.stop('raytrace');
         return result;
     };
     Game.prototype.animate = function () {
         var _this = this;
-        if (document.hasFocus() ||
-            performance.now() - this.fps.timeLastFrame > 1000 / 8) {
+        if (document.hasFocus() || performance.now() - this.fps.timeLastFrame > 1000 / 8) {
             framePerformance.frameStart();
             var t = this.camera.fov;
             this.camera.fov = this.world.player.fast ? 100 : 90;
             if (t != this.camera.fov)
                 this.camera.updateProjectionMatrix();
-            framePerformance.start("step");
+            framePerformance.start('step');
             this.step();
-            framePerformance.stop("step");
-            if (this.gui.layer == 2 /* ingame */) {
+            framePerformance.stop('step');
+            if (this.gui.layer == GUI_LAYER.ingame) {
                 var onFace = void 0;
                 switch (this.gui.getSelectedAction()) {
-                    case "Teleport":
-                    case "Remove Block":
-                    case "Pick Color":
+                    case 'Teleport':
+                    case 'Remove Block':
+                    case 'Pick Color':
                         onFace = false;
                         break;
                     default:
@@ -1442,9 +1456,9 @@ var Game = /** @class */ (function () {
                 this.scene.remove(this.rollOverMesh2);
             }
             // Render Scene
-            framePerformance.start("render");
+            framePerformance.start('render');
             this.renderer.render(this.scene, this.camera);
-            framePerformance.stop("render");
+            framePerformance.stop('render');
             // GUI
             this.gui.animate();
             this.fps.addFrame();
@@ -1561,14 +1575,11 @@ var GoldNugget = /** @class */ (function (_super) {
                 var cutoff = function (n) {
                     return Math.round(n * 100000000) / 100000000;
                 }; // floating point precision fix for flooring
-                var a = cutoff(this.sprite.position.y - collisionRadius) >=
-                    cutoff(cube.position.y + 1);
-                var b = this.sprite.position.y - collisionRadius + deltaY <
-                    cube.position.y + 1;
+                var a = cutoff(this.sprite.position.y - collisionRadius) >= cutoff(cube.position.y + 1);
+                var b = this.sprite.position.y - collisionRadius + deltaY < cube.position.y + 1;
                 // Check from top down
                 if (a && b) {
-                    deltaY =
-                        cube.position.y + collisionRadius + 1 - this.sprite.position.y;
+                    deltaY = cube.position.y + collisionRadius + 1 - this.sprite.position.y;
                     this.velocity.y = 0;
                 }
             }
@@ -1600,17 +1611,17 @@ var TextCanvasObject = /** @class */ (function () {
         var width = 0.9;
         var height = 0.9;
         var geometry = new THREE.PlaneGeometry(width, height);
-        var canvas = document.createElement("canvas");
+        var canvas = document.createElement('canvas');
         canvas.width = 200;
         canvas.height = 200;
-        var context = canvas.getContext("2d");
-        context.fillStyle = "#fff";
+        var context = canvas.getContext('2d');
+        context.fillStyle = '#fff';
         context.fillRect(0, 0, canvas.width, canvas.height);
         //var textWidth = context.measureText(text).width;
-        context.font = 20 + "px Consolas";
-        context.textAlign = "center";
-        context.textBaseline = "middle";
-        context.fillStyle = "#000";
+        context.font = 20 + 'px Consolas';
+        context.textAlign = 'center';
+        context.textBaseline = 'middle';
+        context.fillStyle = '#000';
         context.fillText(text, Math.floor(canvas.width / 2), Math.floor(canvas.height / 2), 200);
         var texture = new THREE.Texture(canvas);
         texture.needsUpdate = true;
@@ -1694,9 +1705,7 @@ var SuperCluster = /** @class */ (function () {
     SuperCluster.prototype.getClusterAt = function (position) {
         for (var _i = 0, _a = this.clusters; _i < _a.length; _i++) {
             var cluster = _a[_i];
-            if (position.x == cluster.position.x &&
-                position.y == cluster.position.y &&
-                position.z == cluster.position.z) {
+            if (position.x == cluster.position.x && position.y == cluster.position.y && position.z == cluster.position.z) {
                 return cluster;
             }
         }
@@ -1710,9 +1719,7 @@ var SuperCluster = /** @class */ (function () {
         var cluster = null;
         for (var _i = 0, _a = this.clusters; _i < _a.length; _i++) {
             var _cluster = _a[_i];
-            if (clusterX == _cluster.position.x &&
-                clusterY == _cluster.position.y &&
-                clusterZ == _cluster.position.z) {
+            if (clusterX == _cluster.position.x && clusterY == _cluster.position.y && clusterZ == _cluster.position.z) {
                 cluster = _cluster;
                 break;
             }
@@ -1740,9 +1747,7 @@ var SuperCluster = /** @class */ (function () {
         var cluster = null;
         for (var _i = 0, _a = this.clusters; _i < _a.length; _i++) {
             var _cluster = _a[_i];
-            if (clusterX == _cluster.position.x &&
-                clusterY == _cluster.position.y &&
-                clusterZ == _cluster.position.z) {
+            if (clusterX == _cluster.position.x && clusterY == _cluster.position.y && clusterZ == _cluster.position.z) {
                 cluster = _cluster;
                 break;
             }
@@ -1761,13 +1766,13 @@ var SuperCluster = /** @class */ (function () {
         }
     };
     SuperCluster.prototype.createMashup = function () {
-        console.time("mergeCubesTotal - CLUSTERS");
+        console.time('mergeCubesTotal - CLUSTERS');
         for (var _i = 0, _a = this.clusters; _i < _a.length; _i++) {
             var cluster = _a[_i];
             if (cluster.geom == null)
                 cluster.createMashup();
         }
-        console.timeEnd("mergeCubesTotal - CLUSTERS");
+        console.timeEnd('mergeCubesTotal - CLUSTERS');
         //console.time("mergeCubesTotal - SUPER CLUSTER")
         //let geom = new THREE.Geometry()
         //for (let cluster of this.clusters) {
@@ -1840,9 +1845,8 @@ var Cluster = /** @class */ (function () {
     };
     Cluster.prototype.removeCubeAt = function (cubePosition) {
         if (this.level == 1) {
-            var pos = this.subs[cubePosition.x][cubePosition.y][cubePosition.z]
-                .position;
-            (this.subs[cubePosition.x][cubePosition.y][cubePosition.z]).remove();
+            var pos = this.subs[cubePosition.x][cubePosition.y][cubePosition.z].position;
+            this.subs[cubePosition.x][cubePosition.y][cubePosition.z].remove();
             this.subs[cubePosition.x][cubePosition.y][cubePosition.z] = null;
             game.connection.sendMessage({
                 type: 3 /* removeCubes */,
@@ -1899,7 +1903,7 @@ var Cluster = /** @class */ (function () {
 }());
 var Cube = /** @class */ (function () {
     function Cube(cubeData) {
-        this.neighbours = {
+        this.neighbors = {
             top: null,
             bottom: null,
             front: null,
@@ -1921,17 +1925,17 @@ var Cube = /** @class */ (function () {
         if (this.position.y < game.world.lowestPoint)
             game.world.lowestPoint = this.position.y;
         if (Cube.texture == null)
-            Cube.texture = new THREE.TextureLoader().load("cube.png");
+            Cube.texture = new THREE.TextureLoader().load('cube.png');
     }
-    Cube.prototype.init = function (updateNeighbours) {
-        if (updateNeighbours === void 0) { updateNeighbours = false; }
-        this.checkNeighbours(updateNeighbours);
+    Cube.prototype.init = function (updateNeighbors) {
+        if (updateNeighbors === void 0) { updateNeighbors = false; }
+        this.checkNeighbors(updateNeighbors);
         this.buildGeometry();
     };
     Cube.prototype.buildGeometry = function () {
         var _this = this;
         var c0, c1, c2, c3;
-        if (this.type != 1 /* glas */) {
+        if (this.type != CUBE_TYPE.glas) {
             c0 = this.color.clone().multiplyScalar(0.5);
             c1 = this.color;
             c2 = this.color.clone().multiplyScalar(0.8);
@@ -1944,17 +1948,16 @@ var Cube = /** @class */ (function () {
             c3 = this.color;
         }
         this.geom = new THREE.Geometry();
-        var face = function (neighbour) {
-            return (neighbour == null ||
-                (neighbour.type == 1 /* glas */ && _this.type != 1 /* glas */));
+        var face = function (neighbor) {
+            return neighbor == null || (neighbor.type == CUBE_TYPE.glas && _this.type != CUBE_TYPE.glas);
         };
         var faces = {
-            top: face(this.neighbours.top),
-            bottom: face(this.neighbours.bottom),
-            left: face(this.neighbours.left),
-            right: face(this.neighbours.right),
-            front: face(this.neighbours.front),
-            back: face(this.neighbours.back),
+            top: face(this.neighbors.top),
+            bottom: face(this.neighbors.bottom),
+            left: face(this.neighbors.left),
+            right: face(this.neighbors.right),
+            front: face(this.neighbors.front),
+            back: face(this.neighbors.back),
         };
         // Vertices
         var vbbl, vbfl, vbfr, vbbr, vtbl, vtfl, vtfr, vtbr;
@@ -2091,29 +2094,29 @@ var Cube = /** @class */ (function () {
         }
     };
     Cube.prototype.remove = function () {
-        if (this.neighbours.back) {
-            this.neighbours.back.neighbours.front = null;
-            this.neighbours.back.buildGeometry();
+        if (this.neighbors.back) {
+            this.neighbors.back.neighbors.front = null;
+            this.neighbors.back.buildGeometry();
         }
-        if (this.neighbours.bottom) {
-            this.neighbours.bottom.neighbours.top = null;
-            this.neighbours.bottom.buildGeometry();
+        if (this.neighbors.bottom) {
+            this.neighbors.bottom.neighbors.top = null;
+            this.neighbors.bottom.buildGeometry();
         }
-        if (this.neighbours.front) {
-            this.neighbours.front.neighbours.back = null;
-            this.neighbours.front.buildGeometry();
+        if (this.neighbors.front) {
+            this.neighbors.front.neighbors.back = null;
+            this.neighbors.front.buildGeometry();
         }
-        if (this.neighbours.left) {
-            this.neighbours.left.neighbours.right = null;
-            this.neighbours.left.buildGeometry();
+        if (this.neighbors.left) {
+            this.neighbors.left.neighbors.right = null;
+            this.neighbors.left.buildGeometry();
         }
-        if (this.neighbours.right) {
-            this.neighbours.right.neighbours.left = null;
-            this.neighbours.right.buildGeometry();
+        if (this.neighbors.right) {
+            this.neighbors.right.neighbors.left = null;
+            this.neighbors.right.buildGeometry();
         }
-        if (this.neighbours.top) {
-            this.neighbours.top.neighbours.bottom = null;
-            this.neighbours.top.buildGeometry();
+        if (this.neighbors.top) {
+            this.neighbors.top.neighbors.bottom = null;
+            this.neighbors.top.buildGeometry();
         }
         if (this.position.y == game.world.lowestPoint) {
             game.world.lowestPoint = Infinity;
@@ -2131,10 +2134,10 @@ var Cube = /** @class */ (function () {
             }
         }
     };
-    Cube.prototype.checkNeighbours = function (updateOthers) {
+    Cube.prototype.checkNeighbors = function (updateOthers) {
         // TODO also update parent cluster(s)
         if (updateOthers === void 0) { updateOthers = false; }
-        this.neighbours = {
+        this.neighbors = {
             top: null,
             bottom: null,
             front: null,
@@ -2151,16 +2154,16 @@ var Cube = /** @class */ (function () {
                 // front back
                 if (cube.position.z == this.position.z) {
                     if (cube.position.x == this.position.x + 1) {
-                        this.neighbours.front = cube;
+                        this.neighbors.front = cube;
                         if (updateOthers) {
-                            cube.neighbours.back = this;
+                            cube.neighbors.back = this;
                             cube.buildGeometry();
                         }
                     }
                     else if (cube.position.x == this.position.x - 1) {
-                        this.neighbours.back = cube;
+                        this.neighbors.back = cube;
                         if (updateOthers) {
-                            cube.neighbours.front = this;
+                            cube.neighbors.front = this;
                             cube.buildGeometry();
                         }
                     }
@@ -2168,35 +2171,34 @@ var Cube = /** @class */ (function () {
                 // left right
                 if (cube.position.x == this.position.x) {
                     if (cube.position.z == this.position.z - 1) {
-                        this.neighbours.left = cube;
+                        this.neighbors.left = cube;
                         if (updateOthers) {
-                            cube.neighbours.right = this;
+                            cube.neighbors.right = this;
                             cube.buildGeometry();
                         }
                     }
                     else if (cube.position.z == this.position.z + 1) {
-                        this.neighbours.right = cube;
+                        this.neighbors.right = cube;
                         if (updateOthers) {
-                            cube.neighbours.left = this;
+                            cube.neighbors.left = this;
                             cube.buildGeometry();
                         }
                     }
                 }
             }
-            else if (cube.position.x == this.position.x &&
-                cube.position.z == this.position.z) {
+            else if (cube.position.x == this.position.x && cube.position.z == this.position.z) {
                 // bottom top
                 if (cube.position.y == this.position.y - 1) {
-                    this.neighbours.bottom = cube;
+                    this.neighbors.bottom = cube;
                     if (updateOthers) {
-                        cube.neighbours.top = this;
+                        cube.neighbors.top = this;
                         cube.buildGeometry();
                     }
                 }
                 else if (cube.position.y == this.position.y + 1) {
-                    this.neighbours.top = cube;
+                    this.neighbors.top = cube;
                     if (updateOthers) {
-                        cube.neighbours.bottom = this;
+                        cube.neighbors.bottom = this;
                         cube.buildGeometry();
                     }
                 }
