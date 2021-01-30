@@ -1,3 +1,4 @@
+#!/bin/sh
 FROM node:13-alpine
 
 WORKDIR /usr/src/app
@@ -13,4 +14,5 @@ COPY . .
 ENV PORT=8080
 EXPOSE ${PORT}
 
-CMD [ "cd", "server", "&&", "ts-node", "server.ts" ]
+WORKDIR /usr/src/app/server
+CMD [ "ts-node", "server.ts" ]
