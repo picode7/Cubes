@@ -51,7 +51,7 @@ class Player {
     })
   }
   static save() {
-    fs.writeFile(Player.filePath, JSON.stringify(Player.players), { encoding: 'utf8' }, () => {})
+    fs.writeFile(Player.filePath, JSON.stringify(Player.players, null, 2), { encoding: 'utf8' }, () => {})
   }
 }
 

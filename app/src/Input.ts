@@ -132,7 +132,7 @@
     }
     moveCamera(deltaX, deltaY) {
       let speed = 0.2
-      this.lon += deltaX * speed // 0 to 360 roundview
+      this.lon += deltaX * speed // 0 to 360 round view
       this.lat -= deltaY * speed // -90 to 90
 
       this.lat = Math.max(-89.99999, Math.min(89.99999, this.lat))

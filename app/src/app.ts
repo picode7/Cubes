@@ -232,7 +232,7 @@ class Game {
             case 'Mono':
               blockType = CUBE_TYPE.mono
               break
-            case 'Glas':
+            case 'Glass':
               blockType = CUBE_TYPE.glass
               break
           }
@@ -445,7 +445,7 @@ class World {
     //    <any>[
     //        new THREE.MeshLambertMaterial( // stone
     //            { color: 0xffffff, wireframe: game.options.wireframe, vertexColors: THREE.FaceColors, map: Cube.texture, }),
-    //        new THREE.MeshLambertMaterial( // glas
+    //        new THREE.MeshLambertMaterial( // glass
     //            { color: 0xffffff, wireframe: game.options.wireframe, vertexColors: THREE.FaceColors, opacity: 0.45, transparent: true }),
     //        new THREE.MeshLambertMaterial( // mono
     //            { color: 0xffffff, wireframe: game.options.wireframe, vertexColors: THREE.FaceColors, }),
@@ -746,7 +746,7 @@ class SuperCluster {
     //    <any>[
     //        new THREE.MeshLambertMaterial( // stone
     //            { color: 0xffffff, wireframe: game.options.wireframe, vertexColors: THREE.FaceColors, map: Cube.texture, }),
-    //        new THREE.MeshLambertMaterial( // glas
+    //        new THREE.MeshLambertMaterial( // glass
     //            { color: 0xffffff, wireframe: game.options.wireframe, vertexColors: THREE.FaceColors, opacity: 0.45, transparent: true }),
     //        new THREE.MeshLambertMaterial( // mono
     //            { color: 0xffffff, wireframe: game.options.wireframe, vertexColors: THREE.FaceColors, }),
@@ -768,12 +768,12 @@ class SuperCluster {
       new THREE.EdgesGeometry(<any>wireGeom, undefined),
       new THREE.LineBasicMaterial({ color: 0xffff00 })
     )
-    this.showWireGeom(this._showWireGrom)
+    this.showWireGeom(this._showWireGeom)
   }
 
-  _showWireGrom = game.options.debugInfo
+  _showWireGeom = game.options.debugInfo
   showWireGeom(show: boolean) {
-    this._showWireGrom = show
+    this._showWireGeom = show
     if (this.wireMashup == null) return
     if (show) {
       game.scene.add(this.wireMashup)
@@ -831,7 +831,7 @@ class Cluster {
   geom: THREE.Geometry = null
   wireGeom: THREE.Geometry = null
   createMashup() {
-    console.time(`mashup cluster l${this.level}`)
+    // console.time(`mashup cluster l${this.level}`)
     this.geom = new THREE.Geometry()
 
     for (let sx of this.subs) {
@@ -860,7 +860,7 @@ class Cluster {
           map: Cube.texture,
         }),
         new THREE.MeshLambertMaterial({
-          // glas
+          // glass
           color: 0xffffff,
           wireframe: game.options.wireframe,
           vertexColors: THREE.FaceColors,
@@ -989,9 +989,6 @@ class Cube {
       this.geom.faces.push(new THREE.Face3(vbfl, vbbr, vbbl, new THREE.Vector3(0, -1, 0), c0, this.type))
       this.geom.faces.push(new THREE.Face3(vbbr, vbfl, vbfr, new THREE.Vector3(0, -1, 0), c0, this.type))
 
-      let offsetx = 1 / 4
-      let offsety = 2 / 4
-      let d = 1 / 4
       this.geom.faceVertexUvs[0].push([
         new THREE.Vector2(1, 3 / 4),
         new THREE.Vector2(3 / 4, 2 / 4),
@@ -1007,26 +1004,24 @@ class Cube {
       this.geom.faces.push(new THREE.Face3(vtbl, vtbr, vtfl, new THREE.Vector3(0, +1, 0), c1, this.type))
       this.geom.faces.push(new THREE.Face3(vtfr, vtfl, vtbr, new THREE.Vector3(0, +1, 0), c1, this.type))
 
-      let offsetx = 1 / 4
-      let offsety = 2 / 4
+      let offsetX = 1 / 4
+      let offsetY = 2 / 4
       let d = 1 / 4
       this.geom.faceVertexUvs[0].push([
-        new THREE.Vector2(offsetx + d * 0, offsety + d * 0),
-        new THREE.Vector2(offsetx + d * 1, offsety + d * 0),
-        new THREE.Vector2(offsetx + d * 0, offsety + d * 1),
+        new THREE.Vector2(offsetX + d * 0, offsetY + d * 0),
+        new THREE.Vector2(offsetX + d * 1, offsetY + d * 0),
+        new THREE.Vector2(offsetX + d * 0, offsetY + d * 1),
       ])
       this.geom.faceVertexUvs[0].push([
-        new THREE.Vector2(offsetx + d * 1, offsety + d * 1),
-        new THREE.Vector2(offsetx + d * 0, offsety + d * 1),
-        new THREE.Vector2(offsetx + d * 1, offsety + d * 0),
+        new THREE.Vector2(offsetX + d * 1, offsetY + d * 1),
+        new THREE.Vector2(offsetX + d * 0, offsetY + d * 1),
+        new THREE.Vector2(offsetX + d * 1, offsetY + d * 0),
       ])
     }
     if (faces.left) {
       this.geom.faces.push(new THREE.Face3(vbbl, vtbl, vbfl, new THREE.Vector3(0, 0, -1), c2, this.type))
       this.geom.faces.push(new THREE.Face3(vtfl, vbfl, vtbl, new THREE.Vector3(0, 0, -1), c2, this.type))
 
-      let offsetx = 1 / 4
-      let offsety = 2 / 4
       let d = 1 / 4
       this.geom.faceVertexUvs[0].push([
         new THREE.Vector2(0, 2 / 4),
@@ -1043,9 +1038,6 @@ class Cube {
       this.geom.faces.push(new THREE.Face3(vbfr, vtbr, vbbr, new THREE.Vector3(0, 0, +1), c2, this.type))
       this.geom.faces.push(new THREE.Face3(vtbr, vbfr, vtfr, new THREE.Vector3(0, 0, +1), c2, this.type))
 
-      let offsetx = 2 / 4
-      let offsety = 2 / 4
-      let d = 1 / 4
       this.geom.faceVertexUvs[0].push([
         new THREE.Vector2(3 / 4, 3 / 4),
         new THREE.Vector2(2 / 4, 2 / 4),
@@ -1061,39 +1053,39 @@ class Cube {
       this.geom.faces.push(new THREE.Face3(vbbl, vbbr, vtbl, new THREE.Vector3(-1, 0, 0), c3, this.type))
       this.geom.faces.push(new THREE.Face3(vtbr, vtbl, vbbr, new THREE.Vector3(-1, 0, 0), c3, this.type))
 
-      let offsetx = 1 / 4
-      let offsety = 1 / 4
+      let offsetX = 1 / 4
+      let offsetY = 1 / 4
       let d = 1 / 4
       this.geom.faceVertexUvs[0].push([
-        new THREE.Vector2(offsetx + d * 0, offsety + d * 0),
-        new THREE.Vector2(offsetx + d * 1, offsety + d * 0),
-        new THREE.Vector2(offsetx + d * 0, offsety + d * 1),
+        new THREE.Vector2(offsetX + d * 0, offsetY + d * 0),
+        new THREE.Vector2(offsetX + d * 1, offsetY + d * 0),
+        new THREE.Vector2(offsetX + d * 0, offsetY + d * 1),
       ])
       this.geom.faceVertexUvs[0].push([
-        new THREE.Vector2(offsetx + d * 1, offsety + d * 1),
-        new THREE.Vector2(offsetx + d * 0, offsety + d * 1),
-        new THREE.Vector2(offsetx + d * 1, offsety + d * 0),
+        new THREE.Vector2(offsetX + d * 1, offsetY + d * 1),
+        new THREE.Vector2(offsetX + d * 0, offsetY + d * 1),
+        new THREE.Vector2(offsetX + d * 1, offsetY + d * 0),
       ])
     }
     if (faces.front) {
       this.geom.faces.push(new THREE.Face3(vtfl, vbfr, vbfl, new THREE.Vector3(+1, 0, 0), c3, this.type))
       this.geom.faces.push(new THREE.Face3(vbfr, vtfl, vtfr, new THREE.Vector3(+1, 0, 0), c3, this.type))
 
-      let offsetx = 1 / 4
-      let offsety = 3 / 4
+      let offsetX = 1 / 4
+      let offsetY = 3 / 4
       let d = 1 / 4
       let mirror = true
       let a = mirror ? 0 : 1
       let b = mirror ? 1 : 0
       this.geom.faceVertexUvs[0].push([
-        new THREE.Vector2(offsetx + d * a, offsety + d * a),
-        new THREE.Vector2(offsetx + d * b, offsety + d * b),
-        new THREE.Vector2(offsetx + d * a, offsety + d * b),
+        new THREE.Vector2(offsetX + d * a, offsetY + d * a),
+        new THREE.Vector2(offsetX + d * b, offsetY + d * b),
+        new THREE.Vector2(offsetX + d * a, offsetY + d * b),
       ])
       this.geom.faceVertexUvs[0].push([
-        new THREE.Vector2(offsetx + d * b, offsety + d * b),
-        new THREE.Vector2(offsetx + d * a, offsety + d * a),
-        new THREE.Vector2(offsetx + d * b, offsety + d * a),
+        new THREE.Vector2(offsetX + d * b, offsetY + d * b),
+        new THREE.Vector2(offsetX + d * a, offsetY + d * a),
+        new THREE.Vector2(offsetX + d * b, offsetY + d * a),
       ])
     }
   }

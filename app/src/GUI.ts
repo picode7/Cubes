@@ -44,7 +44,7 @@ class Info {
       localStorage.setItem('workInProgress', workInProgress)
     }
 
-    let elVersionLog = document.getElementById('versionlog')
+    let elVersionLog = document.getElementById('versionLog')
     let putContentInto = elVersionLog
     let elSpoilerContent = document.createElement('div')
 
@@ -69,7 +69,7 @@ class Info {
     }
 
     if (elSpoilerContent.childElementCount) {
-      let spoiler = elementFromHTML(`<div style="cursor:pointer;color:lightblue">Show Updatelog</div>`)
+      let spoiler = elementFromHTML(`<div style="cursor:pointer;color:lightblue">Show Update Log</div>`)
       spoiler.onclick = () => {
         elSpoilerContent.style.display = 'block'
         spoiler.style.display = 'none'
@@ -187,7 +187,7 @@ const enum GUI_LAYER {
 class GUI {
   layer: GUI_LAYER = GUI_LAYER.none
 
-  private selectActionsText = ['Stone', 'Mono', 'Glas', 'Remove Block', 'Pick Color', 'Teleport']
+  private selectActionsText = ['Stone', 'Mono', 'Glass', 'Remove Block', 'Pick Color', 'Teleport']
   private selectBlockElement: HTMLElement[] = []
   private selectedBlockIndex = 0
 

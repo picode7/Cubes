@@ -1,27 +1,26 @@
 ﻿{
-
   "known issues": [
     "data might be missed during connection lost and reconnect",
     "player collision is, meh.",
     "since jump is depending on 0 vertical velocity, it is sometimes possible to jump again on the highest point"
   ],
   "work in progress": [
-    "using clusters for rendering, trading a bit more time for each frame for way less time when modifing cubes",
+    "using clusters for rendering, trading a bit more time for each frame for way less time when modifying cubes",
     "saving player on server",
-    "mousewheel improvments for touchpad",
+    "mouse wheel improvements for touch pad",
     "added menu GUI",
-    "actions can now be selected with mousewheel or numkeys and are displayed on the right. This includes block actions and teleport"
+    "actions can now be selected with mouse wheel or num keys and are displayed on the right. This includes block actions and teleport"
   ],
   "versions": [
     {
       "version": "0.1.0",
       "changes": [
         "chat now scrolls down automatically when having a scrolling bar",
-        "empty chat messages are not beeing send",
+        "empty chat messages are not being send",
         "added time tag to chat messages",
         "cubes now have walls towards transparent cubes",
         "teleport now always goes on top of the pointed cube",
-        "bug fix: floating-point-number-pressision-problem when raycasting on a cube could result in selecting a neighbour instead",
+        "bug fix: floating-point-number-precision-problem when ray-casting on a cube could result in selecting a neighbor instead",
         "select a color with \"C\" while pointing at a cube or in the void to set it to random",
         "select cube type with mouse wheel",
         "block properties are now saved",
@@ -29,8 +28,8 @@
         "fixed keyboard for all browsers",
         "cubes can now have a texture",
         "fast now toggles when clicking shift",
-        "bug fix: velocity now set to 0 when teleporting",
-        "keyboard issue fix: keypress or keyrelease will not be registered if the window is not in focus, there fore the are now set to not pressed when window loses focus"
+        "bug fix: velocity now set to 0 when tele-porting",
+        "keyboard issue fix: key-press or key-release will not be registered if the window is not in focus, there fore the are now set to not pressed when window loses focus"
       ]
     },
     {
@@ -38,7 +37,7 @@
       "changes": [
         "added option to set render scale",
         "now attempting to automatically reconnect to server",
-        "sending updated playerposition only if moved",
+        "sending updated player position only if moved",
         "server is now messaging the clients if there is an game update",
         "added chat message when player joining or leaving",
         "teleport with <P>",
@@ -51,7 +50,7 @@
       "version": "0.0.4",
       "changes": [
         "when not in focus only rendering at 8 FPS",
-        "slightly increased raycast performance for setting cubes"
+        "slightly increased ray-cast performance for setting cubes"
       ]
     },
     {
@@ -67,10 +66,7 @@
     },
     {
       "version": "0.0.2",
-      "changes": [
-        "added simple chat system",
-        "added spoiler in version log"
-      ]
+      "changes": ["added simple chat system", "added spoiler in version log"]
     },
     {
       "version": "0.0.1",
