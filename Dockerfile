@@ -9,6 +9,7 @@ COPY /server/package*.json ./server/
 RUN cd server && npm install
 
 COPY . .
+RUN cd app && tsc
 
 ENV PORT=8080
 EXPOSE ${PORT}
