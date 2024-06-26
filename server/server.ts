@@ -51,7 +51,7 @@ class Player {
     })
   }
   static save() {
-    fs.writeFile(Player.filePath, JSON.stringify(Player.players, null, 2), { encoding: 'utf8' }, () => {})
+    fs.writeFile(Player.filePath, JSON.stringify(Player.players, null, 2), { encoding: 'utf8' }, () => { })
   }
 }
 
@@ -85,7 +85,7 @@ function loadCubes() {
   })
 }
 function saveCubes() {
-  fs.writeFile('../data/data.json', JSON.stringify(cubes), { encoding: 'utf8' }, () => {})
+  fs.writeFile('../data/data.json', JSON.stringify(cubes), { encoding: 'utf8' }, () => { })
 }
 
 loadCubes()
@@ -200,7 +200,7 @@ setInterval(() => {
     if (!socket.isAlive) return socket.terminate()
 
     socket.isAlive = false
-    socket.ping(null, false, true)
+    socket.ping()
   })
 }, 10000)
 

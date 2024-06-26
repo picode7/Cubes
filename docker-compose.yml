@@ -5,3 +5,4 @@ services:
       - 8088:8080
     volumes:
       - ./data:/usr/src/app/data
+    restart: always
